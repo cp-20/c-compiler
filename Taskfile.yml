@@ -1,0 +1,24 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+  generate-llvm:
+    cmds:
+      - clang -S -emit-llvm {{ .CLI_ARGS }}.c -o {{ .CLI_ARGS }}.ll
+    desc: Generate LLVM IR from C source file
+  compile-llvm:
+    cmds:
+      - clang {{ .CLI_ARGS }}.ll -o {{ .CLI_ARGS }}
+      - ./{{ .CLI_ARGS }}
+    desc: Compile LLVM IR to executable
+  compile-c:
+    cmds:
+      - clang {{ .CLI_ARGS }}.c -o {{ .CLI_ARGS }}
+      - ./{{ .CLI_ARGS }}
+    desc: Compile C source file to executable
+  calc:
+    cmds:
+      - clang calc.c -o calc
+      - ./calc_test.sh
+    desc: Compile and test calc.c

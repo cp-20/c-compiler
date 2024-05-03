@@ -21,6 +21,7 @@ struct Node {
 
 Node *expr(Token **token);
 Node *mul(Token **token);
+Node *unary(Token **token);
 Node *primary(Token **token);
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -52,16 +53,23 @@ Node *expr(Token **token) {
 }
 
 Node *mul(Token **token) {
-  Node *node = primary(token);
+  Node *node = unary(token);
 
   for (;;) {
     if (consume(token, '*'))
-      node = new_node(ND_MUL, node, primary(token));
+      node = new_node(ND_MUL, node, unary(token));
     else if (consume(token, '/'))
-      node = new_node(ND_DIV, node, primary(token));
+      node = new_node(ND_DIV, node, unary(token));
     else
       return node;
   }
+}
+
+Node *unary(Token **token) {
+  if (consume(token, '+')) return primary(token);
+  if (consume(token, '-'))
+    return new_node(ND_SUB, new_node_num(0), primary(token));
+  return primary(token);
 }
 
 Node *primary(Token **token) {

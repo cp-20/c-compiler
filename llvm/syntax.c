@@ -49,7 +49,7 @@ Variable* syntax_init_variable(vector* output, VariableType* type) {
                         strlen(type_str) + strlen(size));
   sprintf(buffer, format, variable->name, type_str, size);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 
   return variable;
 }
@@ -73,7 +73,7 @@ void syntax_assign_value(vector* output, Variable* var, char* val) {
                         strlen(var) + strlen(size));
   sprintf(buffer, format, type_str, val, type_str, var, size);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 }
 
 void syntax_assign_variable(vector* output, Variable* v1, Variable* v2) {
@@ -89,7 +89,7 @@ void syntax_assign_variable(vector* output, Variable* v1, Variable* v2) {
                         strlen(v1) + strlen(size));
   sprintf(buffer, format, type_str, v2, type_str, v1, size);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 }
 
 Variable* syntax_load_variable(vector* output, Variable* src) {
@@ -104,7 +104,7 @@ Variable* syntax_load_variable(vector* output, Variable* src) {
                         strlen(src) + strlen(size));
   sprintf(buffer, format, dest->name, type_str, src->name, size);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 
   return src;
 }
@@ -121,7 +121,7 @@ void syntax_compare(vector* output, Variable* v1, Variable* v2, char* cond) {
                         strlen(v2->name) + strlen(cond));
   sprintf(buffer, format, cond, type_str, v1->name, v2->name);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 }
 
 Variable* syntax_init_string(vector* output, char* value) {
@@ -137,7 +137,7 @@ Variable* syntax_init_string(vector* output, char* value) {
                         strlen(value));
   sprintf(buffer, format, variable, strlen(value), value);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 
   return variable;
 }
@@ -151,7 +151,7 @@ char* syntax_label(vector* output) {
   char* buffer = malloc(strlen(format) + strlen(name) - 1);
   sprintf(buffer, format, name + 1);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 
   return name;
 }
@@ -163,7 +163,7 @@ void syntax_if_start(vector* output, Variable* cond, char* true_label,
                         strlen(true_label) + strlen(false_label));
   sprintf(buffer, format, cond->name, true_label, false_label);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 }
 
 void syntax_jump(vector* output, char* label) {
@@ -171,7 +171,7 @@ void syntax_jump(vector* output, char* label) {
   char* buffer = malloc(strlen(format) + strlen(label));
   sprintf(buffer, format, label);
 
-  pushLast(output, buffer);
+  vec_push_last(output, buffer);
 }
 
 void syntax_function_start(vector* output, char* name,
@@ -192,4 +192,4 @@ void syntax_function_start(vector* output, char* name,
   }
 }
 
-void syntax_function_end(vector* output) { pushLast(output, "}\n"); }
+void syntax_function_end(vector* output) { vec_push_last(output, "}\n"); }

@@ -3,7 +3,7 @@ assert() {
   input="$1"
   expected="$2"
 
-  ./dist/calc "$input" > ./dist/tmp.ll
+  ./dist/1cc "$input" > ./dist/tmp.ll
   clang ./dist/tmp.ll -o ./dist/tmp
   actual=$(./dist/tmp)
 
@@ -15,11 +15,29 @@ assert() {
   fi
 }
 
+# 単項
 assert "0" "0"
 assert "42" "42"
+
+# 加減算のみ
 assert "1 + 3" "4"
 assert "3 - 2" "1"
 assert "5 + 3 - 2" "6"
 assert "13 - 5 + 66" "74"
+
+# 乗除算あり
+assert "2 * 3" "6"
+assert "6 / 2" "3"
+assert "2 * 3 + 4" "10"
+assert "2 + 3 * 4" "14"
+assert "2 * 3 * 4" "24"
+assert "2 * 3 / 4" "1"
+assert "2 / 3 * 4" "0"
+
+# 括弧あり
+assert "(2 + 3) * 4" "20"
+assert "2 * (3 + 4)" "14"
+assert "2 * (3 + 4) * 5" "70"
+assert "2 * (3 + 4) / 5" "2"
 
 echo OK

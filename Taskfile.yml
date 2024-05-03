@@ -17,8 +17,3 @@ tasks:
       - clang {{ .CLI_ARGS }}.c -o {{ .CLI_ARGS }}
       - ./{{ .CLI_ARGS }}
     desc: Compile C source file to executable
-  calc:
-    cmds:
-      - clang calc.c -o ./dist/calc
-      - ./calc_test.sh
-    desc: Compile and test calc.c

@@ -19,6 +19,7 @@ typedef struct Token {
   struct Token *next;  // 次の入力トークン
   int val;             // kindがTK_NUMの場合、その数値
   char *str;           // トークン文字列
+  int len;             // トークンの長さ
 } Token;
 
 Token *new_token(TokenKind kind, Token *cur, char *str);
@@ -30,8 +31,8 @@ bool is_digit(char c);
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize(char *p);
 
-bool consume(Token **token, char op);
+bool consume(Token **token, char *op);
 
-void expect(Token **token, char op);
+void expect(Token **token, char *op);
 
 int expect_number(Token **token);

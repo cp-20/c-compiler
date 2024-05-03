@@ -34,22 +34,64 @@ int generate(Node* node, vector* stack) {
   // 計算する
   int r_result_val = r_register();
   switch (node->kind) {
-    case ND_ADD:
+    case ND_ADD: {
       printf("  %%%d = add nsw i32 %%%d, %%%d\n", r_result_val, r_left_val,
              r_right_val);
-      break;
-    case ND_SUB:
+    } break;
+    case ND_SUB: {
       printf("  %%%d = sub nsw i32 %%%d, %%%d\n", r_result_val, r_left_val,
              r_right_val);
-      break;
-    case ND_MUL:
+    } break;
+    case ND_MUL: {
       printf("  %%%d = mul nsw i32 %%%d, %%%d\n", r_result_val, r_left_val,
              r_right_val);
-      break;
-    case ND_DIV:
+    } break;
+    case ND_DIV: {
       printf("  %%%d = sdiv i32 %%%d, %%%d\n", r_result_val, r_left_val,
              r_right_val);
-      break;
+    } break;
+    case ND_EQ: {
+      int r_middle = r_register() - 1;
+      r_result_val++;
+      printf("  %%%d = icmp eq i32 %%%d, %%%d\n", r_middle, r_left_val,
+             r_right_val);
+      printf("  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    } break;
+    case ND_NE: {
+      int r_middle = r_register() - 1;
+      r_result_val++;
+      printf("  %%%d = icmp ne i32 %%%d, %%%d\n", r_middle, r_left_val,
+             r_right_val);
+      printf("  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    } break;
+    case ND_LT: {
+      int r_middle = r_register() - 1;
+      r_result_val++;
+      printf("  %%%d = icmp slt i32 %%%d, %%%d\n", r_middle, r_left_val,
+             r_right_val);
+      printf("  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    } break;
+    case ND_LE: {
+      int r_middle = r_register() - 1;
+      r_result_val++;
+      printf("  %%%d = icmp sle i32 %%%d, %%%d\n", r_middle, r_left_val,
+             r_right_val);
+      printf("  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    } break;
+    case ND_GT: {
+      int r_middle = r_register() - 1;
+      r_result_val++;
+      printf("  %%%d = icmp sgt i32 %%%d, %%%d\n", r_middle, r_left_val,
+             r_right_val);
+      printf("  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    } break;
+    case ND_GE: {
+      int r_middle = r_register() - 1;
+      r_result_val++;
+      printf("  %%%d = icmp sge i32 %%%d, %%%d\n", r_middle, r_left_val,
+             r_right_val);
+      printf("  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    } break;
   }
 
   // 結果を再びスタックに積む

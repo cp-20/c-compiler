@@ -8,6 +8,12 @@ typedef enum {
   ND_SUB,  // -
   ND_MUL,  // *
   ND_DIV,  // /
+  ND_EQ,   // ==
+  ND_NE,   // !=
+  ND_LT,   // <
+  ND_LE,   // <=
+  ND_GT,   // >
+  ND_GE,   // >=
   ND_NUM,  // 整数
 } NodeKind;
 
@@ -26,6 +32,12 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 Node *new_node_num(int val);
 
 Node *expr(Token **token);
+
+Node *equality(Token **token);
+
+Node *relational(Token **token);
+
+Node *add(Token **token);
 
 Node *mul(Token **token);
 

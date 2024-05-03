@@ -17,6 +17,7 @@ typedef struct Token {
   struct Token *next;  // 次の入力トークン
   int val;             // kindがTK_NUMの場合、その数値
   char *str;           // トークン文字列
+  int len;             // トークンの長さ
 } Token;
 
 Token *new_token(TokenKind kind, Token *cur, char *str) {
@@ -50,8 +51,19 @@ Token *tokenize(char *p) {
       continue;
     }
 
-    if (strchr("+-*/()", *p)) {
+    // 2文字の記号
+    if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
+        strncmp(p, "<=", 2) == 0 || strncmp(p, ">=", 2) == 0) {
+      cur = new_token(TK_RESERVED, cur, p);
+      cur->len = 2;
+      p += 2;
+      continue;
+    }
+
+    // 1文字の記号
+    if (strchr("+-*/()<>", *p)) {
       cur = new_token(TK_RESERVED, cur, p++);
+      cur->len = 1;
       continue;
     }
 
@@ -68,15 +80,18 @@ Token *tokenize(char *p) {
   return head.next;
 }
 
-bool consume(Token **token, char op) {
-  if ((*token)->kind != TK_RESERVED || (*token)->str[0] != op) return false;
-  *token = (*token)->next;
+bool consume(Token **token, char *op) {
+  if ((*token)->kind != TK_RESERVED || strlen(op) != (*token)->len ||
+      memcmp((*token)->str, op, (*token)->len))
+    return false;
+  (*token) = (*token)->next;
   return true;
 }
 
-void expect(Token **token, char op) {
-  if ((*token)->kind != TK_RESERVED || (*token)->str[0] != op)
-    error_at((*token)->str, "'%c'ではありません", op);
+void expect(Token **token, char *op) {
+  if ((*token)->kind != TK_RESERVED || strlen(op) != (*token)->len ||
+      memcmp((*token)->str, op, (*token)->len))
+    error_at((*token)->str, "'%s'ではありません", op);
   *token = (*token)->next;
 }
 

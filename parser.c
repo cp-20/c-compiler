@@ -6,6 +6,12 @@ typedef enum {
   ND_SUB,  // -
   ND_MUL,  // *
   ND_DIV,  // /
+  ND_EQ,   // ==
+  ND_NE,   // !=
+  ND_LT,   // <
+  ND_LE,   // <=
+  ND_GT,   // >
+  ND_GE,   // >=
   ND_NUM,  // 整数
 } NodeKind;
 
@@ -19,7 +25,20 @@ struct Node {
   int val;        // kindがND_NUMの場合のみ使う
 };
 
+// EBNF grammar expression
+//
+// expr       = equality
+// equality   = relational ("==" relational | "!=" relational)*
+// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+// add        = mul ("+" mul | "-" mul)*
+// mul        = unary ("*" unary | "/" unary)*
+// unary      = ("+" | "-")? primary
+// primary    = num | "(" expr ")"
+
 Node *expr(Token **token);
+Node *equality(Token **token);
+Node *relational(Token **token);
+Node *add(Token **token);
 Node *mul(Token **token);
 Node *unary(Token **token);
 Node *primary(Token **token);
@@ -39,13 +58,45 @@ Node *new_node_num(int val) {
   return node;
 }
 
-Node *expr(Token **token) {
+Node *expr(Token **token) { return equality(token); }
+
+Node *equality(Token **token) {
+  Node *node = relational(token);
+
+  for (;;) {
+    if (consume(token, "=="))
+      node = new_node(ND_EQ, node, relational(token));
+    else if (consume(token, "!="))
+      node = new_node(ND_NE, node, relational(token));
+    else
+      return node;
+  }
+}
+
+Node *relational(Token **token) {
+  Node *node = add(token);
+
+  for (;;) {
+    if (consume(token, "<"))
+      node = new_node(ND_LT, node, add(token));
+    else if (consume(token, "<="))
+      node = new_node(ND_LE, node, add(token));
+    else if (consume(token, ">"))
+      node = new_node(ND_GT, node, add(token));
+    else if (consume(token, ">="))
+      node = new_node(ND_GE, node, add(token));
+    else
+      return node;
+  }
+}
+
+Node *add(Token **token) {
   Node *node = mul(token);
 
   for (;;) {
-    if (consume(token, '+'))
+    if (consume(token, "+"))
       node = new_node(ND_ADD, node, mul(token));
-    else if (consume(token, '-'))
+    else if (consume(token, "-"))
       node = new_node(ND_SUB, node, mul(token));
     else
       return node;
@@ -56,9 +107,9 @@ Node *mul(Token **token) {
   Node *node = unary(token);
 
   for (;;) {
-    if (consume(token, '*'))
+    if (consume(token, "*"))
       node = new_node(ND_MUL, node, unary(token));
-    else if (consume(token, '/'))
+    else if (consume(token, "/"))
       node = new_node(ND_DIV, node, unary(token));
     else
       return node;
@@ -66,17 +117,17 @@ Node *mul(Token **token) {
 }
 
 Node *unary(Token **token) {
-  if (consume(token, '+')) return primary(token);
-  if (consume(token, '-'))
+  if (consume(token, "+")) return primary(token);
+  if (consume(token, "-"))
     return new_node(ND_SUB, new_node_num(0), primary(token));
   return primary(token);
 }
 
 Node *primary(Token **token) {
   // 次のトークンが"("なら、"(" expr ")"のはず
-  if (consume(token, '(')) {
+  if (consume(token, "(")) {
     Node *node = expr(token);
-    expect(token, ')');
+    expect(token, ")");
     return node;
   }
 

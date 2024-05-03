@@ -25,11 +25,13 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 
 Node *new_node_num(int val);
 
-Node *expr(Token *token);
+Node *expr(Token **token);
 
-Node *mul(Token *token);
+Node *mul(Token **token);
 
-Node *primary(Token *token);
+Node *unary(Token **token);
+
+Node *primary(Token **token);
 
 Node *parse(Token *token);
 

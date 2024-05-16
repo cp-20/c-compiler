@@ -7,6 +7,7 @@
 // トークンの種類
 typedef enum {
   TK_RESERVED,  // 記号
+  TK_IDENT,     // 識別子
   TK_NUM,       // 整数トークン
   TK_EOF,       // 入力の終わりを表すトークン
 } TokenKind;
@@ -19,6 +20,27 @@ typedef struct Token {
   char *str;           // トークン文字列
   int len;             // トークンの長さ
 } Token;
+
+typedef struct LVar LVar;
+
+// ローカル変数の型
+struct LVar {
+  LVar *next;  // 次の変数かNULL
+  char *name;  // 変数の名前
+  int len;     // 名前の長さ
+  int offset;  // RBPからのオフセット
+};
+
+// ローカル変数
+LVar *locals;
+
+// 変数を名前で検索する。見つからなかった場合はNULLを返す。
+LVar *find_lvar(Token *tok) {
+  for (LVar *var = locals; var; var = var->next)
+    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
+      return var;
+  return NULL;
+}
 
 Token *new_token(TokenKind kind, Token *cur, char *str) {
   Token *tok = calloc(1, sizeof(Token));
@@ -38,8 +60,40 @@ bool is_space(char c) {
 
 bool is_digit(char c) { return '0' <= c && c <= '9'; }
 
+bool is_ident(char c) {
+  if ('a' <= c && c <= 'z') return true;
+  if ('A' <= c && c <= 'Z') return true;
+  if (c == '_') return true;
+  return false;
+}
+
+bool is_special(char c) {
+  if (c == '+') return true;
+  if (c == '-') return true;
+  if (c == '*') return true;
+  if (c == '/') return true;
+  if (c == '(') return true;
+  if (c == ')') return true;
+  if (c == '<') return true;
+  if (c == '>') return true;
+  if (c == '=') return true;
+  if (c == ';') return true;
+  return false;
+}
+
+bool is_special2(char *p) {
+  if (strncmp(p, "==", 2) == 0) return true;
+  if (strncmp(p, "!=", 2) == 0) return true;
+  if (strncmp(p, "<=", 2) == 0) return true;
+  if (strncmp(p, ">=", 2) == 0) return true;
+  return false;
+}
+
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize(char *p) {
+  // 初期化
+  locals = NULL;
+
   Token head;
   head.next = NULL;
   Token *cur = &head;
@@ -52,8 +106,7 @@ Token *tokenize(char *p) {
     }
 
     // 2文字の記号
-    if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
-        strncmp(p, "<=", 2) == 0 || strncmp(p, ">=", 2) == 0) {
+    if (is_special2(p)) {
       cur = new_token(TK_RESERVED, cur, p);
       cur->len = 2;
       p += 2;
@@ -61,12 +114,25 @@ Token *tokenize(char *p) {
     }
 
     // 1文字の記号
-    if (strchr("+-*/()<>", *p)) {
+    if (is_special(*p)) {
       cur = new_token(TK_RESERVED, cur, p++);
       cur->len = 1;
       continue;
     }
 
+    // 識別子
+    if (is_ident(*p)) {
+      char *start = p;
+      do {
+        p++;
+      } while (is_ident(*p) || is_digit(*p));
+
+      cur = new_token(TK_IDENT, cur, start);
+      cur->len = p - start;
+      continue;
+    }
+
+    // 数字
     if (is_digit(*p)) {
       cur = new_token(TK_NUM, cur, p);
       cur->val = strtol(p, &p, 10);
@@ -86,6 +152,13 @@ bool consume(Token **token, char *op) {
     return false;
   (*token) = (*token)->next;
   return true;
+}
+
+Token *consume_ident(Token **token) {
+  if ((*token)->kind != TK_IDENT) return NULL;
+  Token *cur = *token;
+  (*token) = (*token)->next;
+  return cur;
 }
 
 void expect(Token **token, char *op) {

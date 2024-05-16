@@ -1,73 +1,107 @@
 #!/bin/bash
+
+ok_count=0
+ng_count=0
+
 assert() {
+  col_red="\x1b[31m"
+  col_green="\x1b[32m"
+  col_yellow="\x1b[33m"
+  col_blue="\x1b[34m"
+  col_magenta="\x1b[35m"
+  col_cyan="\x1b[36m"
+  col_reset="\x1b[0m"
+
+  ok="$col_green[OK]$col_reset"
+  ng="$col_red[NG]$col_reset"
+
   input="$1"
   expected="$2"
 
-  ./dist/1cc "$input" > ./dist/tmp.ll
+  ./dist/1cc "$input" >./dist/tmp.ll
+  if [ $? -ne 0 ]; then
+    echo "-e $ng Failed to compile \"$input\""
+    ng_count=$((ng_count + 1))
+    return
+  fi
   clang ./dist/tmp.ll -o ./dist/tmp
   actual=$(./dist/tmp)
 
   if [ "$actual" = "$expected" ]; then
-    echo "$input => $actual"
+    echo -e $ok "\"$input\" => \"$actual\""
+    ok_count=$((ok_count + 1))
   else
-    echo "$input => $expected is expected, but got $actual"
-    exit 1
+    echo -e $ng " \"$input\" => $expected\""
+    echo -e "    actual: \"$actual\""
+    ng_count=$((ng_count + 1))
   fi
 }
 
 # 単項
-assert "0" "0"
-assert "42" "42"
+assert "0;" "0"
+assert "42;" "42"
 
 # 加減算のみ
-assert "1 + 3" "4"
-assert "3 - 2" "1"
-assert "5 + 3 - 2" "6"
-assert "13 - 5 + 66" "74"
+assert "1 + 3;" "4"
+assert "3 - 2;" "1"
+assert "5 + 3 - 2;" "6"
+assert "5 - 3 - 2;" "0"
+assert "13 - 5 + 66;" "74"
 
 # 乗除算あり
-assert "2 * 3" "6"
-assert "6 / 2" "3"
-assert "2 * 3 + 4" "10"
-assert "2 + 3 * 4" "14"
-assert "2 * 3 * 4" "24"
-assert "2 * 3 / 4" "1"
-assert "2 / 3 * 4" "0"
+assert "2 * 3;" "6"
+assert "6 / 2;" "3"
+assert "2 * 3 + 4;" "10"
+assert "2 + 3 * 4;" "14"
+assert "2 * 3 * 4;" "24"
+assert "2 * 3 / 4;" "1"
+assert "2 / 3 * 4;" "0"
 
 # 括弧あり
-assert "(2 + 3) * 4" "20"
-assert "2 * (3 + 4)" "14"
-assert "2 * (3 + 4) * 5" "70"
-assert "2 * (3 + 4) / 5" "2"
+assert "(2 + 3) * 4;" "20"
+assert "2 * (3 + 4);" "14"
+assert "2 * (3 + 4) * 5;" "70"
+assert "2 * (3 + 4) / 5;" "2"
 
 # 単項演算子
-assert "-1" "-1"
-assert "-(1 + 2)" "-3"
-assert "-(1 + 2) * 3" "-9"
-assert "-(1 + 2) * -3" "9"
-assert "+4 * 3" "12"
-assert "3 * +2" "6"
-assert "+(-3 * 4)" "-12"
+assert "-1;" "-1"
+assert "-(1 + 2);" "-3"
+assert "-(1 + 2) * 3;" "-9"
+assert "-(1 + 2) * -3;" "9"
+assert "+4 * 3;" "12"
+assert "3 * +2;" "6"
+assert "+(-3 * 4);" "-12"
 
 # 比較演算子
-assert "3 == 3" "1"
-assert "3 == 2 + 1" "1"
-assert "3 == 2" "0"
-assert "4 - 1 == 2" "0"
-assert "3 != 4" "1"
-assert "3 != 3" "0"
-assert "3 != 2 + 1" "0"
-assert "3 < 5" "1"
-assert "6 < 5" "0"
-assert "5 < 5" "0"
-assert "3 <= 5" "1"
-assert "6 <= 5" "0"
-assert "5 <= 5" "1"
-assert "3 > 5" "0"
-assert "6 > 5" "1"
-assert "5 > 5" "0"
-assert "3 >= 5" "0"
-assert "6 >= 5" "1"
-assert "5 >= 5" "1"
+assert "3 == 3;" "1"
+assert "3 == 2 + 1;" "1"
+assert "3 == 2;" "0"
+assert "4 - 1 == 2;" "0"
+assert "3 != 4;" "1"
+assert "3 != 3;" "0"
+assert "3 != 2 + 1;" "0"
+assert "3 < 5;" "1"
+assert "6 < 5;" "0"
+assert "5 < 5;" "0"
+assert "3 <= 5;" "1"
+assert "6 <= 5;" "0"
+assert "5 <= 5;" "1"
+assert "3 > 5;" "0"
+assert "6 > 5;" "1"
+assert "5 > 5;" "0"
+assert "3 >= 5;" "0"
+assert "6 >= 5;" "1"
+assert "5 >= 5;" "1"
 
-echo OK
+# ローカル変数
+assert "a = 3; a;" "3"
+assert "aaa = 3; bbbb = 5; aaa + bbbb;" "8"
+assert "a = 3; b = 5; a = 4; a + b;" "9"
+assert "a = b = 3; a * 2 * b;" "18"
+
+if [ $ng_count -eq 0 ]; then
+  echo -e "\n${col_green}all $ok_count tests passed🎉${col_reset}"
+else
+  echo -e "$col_green\n$ok_count tests passed🎉$col_reset"
+  echo -e "$col_red$ng_count tests failed😭$col_reset"
+fi

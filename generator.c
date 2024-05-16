@@ -1,14 +1,18 @@
 #include <stdio.h>
 
+#include "error.h"
 #include "llvm.h"
 #include "parser.h"
 #include "vector.h"
 
-int generate(Node* node, vector* stack) {
-  if (stack == NULL) {
-    stack = new_vector();
-  }
+// 左辺値のポインタ (レジスタ) を返す
+int gen_lval(Node* node, int* locals_r) {
+  if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
 
+  return locals_r[node->offset];
+}
+
+int generate_node(Node* node, vector* stack, int* locals_r) {
   // 数字の場合はそのままスタックに積む
   if (node->kind == ND_NUM) {
     int* r_num = malloc(sizeof(int));
@@ -17,11 +21,25 @@ int generate(Node* node, vector* stack) {
     printf("  store i32 %d, i32* %%%d, align 4\n", node->val, *r_num);
     vec_push_last(stack, r_num);
     return *r_num;
+  } else if (node->kind == ND_LVAR) {
+    // ローカル変数の場合はその値をスタックに積む
+    vec_push_last(stack, &locals_r[node->offset]);
+    return locals_r[node->offset];
+  } else if (node->kind == ND_ASSIGN) {
+    // 代入の場合は右辺を計算して左辺に代入する
+    int lptr = gen_lval(node->lhs, locals_r);
+    generate_node(node->rhs, stack, locals_r);
+
+    int r_right = *(int*)vec_at(stack, stack->size - 1);
+    int r_right_val = r_register();
+    printf("  %%%d = load i32, i32* %%%d, align 4\n", r_right_val, r_right);
+    printf("  store i32 %%%d, i32* %%%d, align 4\n", r_right_val, lptr);
+    return r_right;
   }
 
   // 演算子の場合は左右のノードを先に計算する
-  generate(node->lhs, stack);
-  generate(node->rhs, stack);
+  generate_node(node->lhs, stack, locals_r);
+  generate_node(node->rhs, stack, locals_r);
 
   // スタックから2つ取り出す
   int r_right = *(int*)vec_pop(stack);
@@ -101,5 +119,32 @@ int generate(Node* node, vector* stack) {
   vec_push_last(stack, &r_result);
 
   // スタックの最後を返す
+  return r_result;
+}
+
+int generate(vector* code) {
+  // 初期化処理
+  vector* stack = new_vector();
+
+  int local_count = 0;
+  for (LVar* var = locals; var; var = var->next) local_count++;
+  int* locals_r = malloc(sizeof(int) * local_count);
+
+  for (LVar* var = locals; var; var = var->next) {
+    int r = r_register();
+    printf("  ; %.*s (local var)\n", var->len, var->name);
+    printf("  %%%d = alloca i32, align 4\n", r);
+    locals_r[var->offset] = r;
+  }
+
+  int r_result;
+  // コード生成
+  for (int i = 0; i < code->size; i++) {
+    printf("  ; ");
+    print_node(vec_at(code, i));
+    printf("\n");
+    r_result = generate_node(vec_at(code, i), stack, locals_r);
+  }
+
   return r_result;
 }

@@ -6,4 +6,6 @@
 #include "parser.h"
 #include "vector.h"
 
-int generate(Node* node, vector* stack);
+int generate(vector* code);
+
+int generate_node(Node* node, vector* stack, int* locals);

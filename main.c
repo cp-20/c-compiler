@@ -19,7 +19,8 @@ int main(int argc, char** argv) {
 
   // トークナイズしてパースする
   Token* token = tokenize(input);
-  Node* node = parse(token);
+
+  vector* code = parse(token);
 
   // header
   printf("source_filename = \"calc.c\"\n");
@@ -40,7 +41,7 @@ int main(int argc, char** argv) {
   printf("  define dso_local i32 @main() #0 {\n");
 
   // コード生成
-  int r_result = generate(node, NULL);
+  int r_result = generate(code);
 
   // 結果の出力
   int r_result_val = r_register();

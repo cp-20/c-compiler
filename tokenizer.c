@@ -9,6 +9,7 @@ typedef enum {
   TK_RESERVED,  // 記号
   TK_IDENT,     // 識別子
   TK_NUM,       // 整数トークン
+  TK_RETURN,    // return
   TK_EOF,       // 入力の終わりを表すトークン
 } TokenKind;
 
@@ -60,7 +61,7 @@ bool is_space(char c) {
 
 bool is_digit(char c) { return '0' <= c && c <= '9'; }
 
-bool is_ident(char c) {
+bool is_alnum(char c) {
   if ('a' <= c && c <= 'z') return true;
   if ('A' <= c && c <= 'Z') return true;
   if (c == '_') return true;
@@ -120,12 +121,19 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // return文
+    if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6])) {
+      cur = new_token(TK_RETURN, cur, p);
+      p += 6;
+      continue;
+    }
+
     // 識別子
-    if (is_ident(*p)) {
+    if (is_alnum(*p)) {
       char *start = p;
       do {
         p++;
-      } while (is_ident(*p) || is_digit(*p));
+      } while (is_alnum(*p) || is_digit(*p));
 
       cur = new_token(TK_IDENT, cur, start);
       cur->len = p - start;
@@ -144,6 +152,12 @@ Token *tokenize(char *p) {
 
   new_token(TK_EOF, cur, p);
   return head.next;
+}
+
+bool consume_reserved(Token **token, TokenKind kind) {
+  if ((*token)->kind != kind) return false;
+  (*token) = (*token)->next;
+  return true;
 }
 
 bool consume(Token **token, char *op) {

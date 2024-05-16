@@ -16,6 +16,7 @@ typedef enum {
   ND_GE,      // >=
   ND_ASSIGN,  // = (代入)
   ND_LVAR,    // ローカル変数
+  ND_RETURN,  // return
   ND_NUM,     // 整数
 } NodeKind;
 
@@ -33,7 +34,7 @@ struct Node {
 // EBNF grammar expression
 //
 // program    = stmt*
-// stmt       = expr ";"
+// stmt       = expr ";" | "return" expr ";"
 // expr       = assign
 // assign     = equality ("=" assign)?
 // equality   = relational ("==" relational | "!=" relational)*
@@ -69,8 +70,6 @@ Node *new_node_num(int val) {
   return node;
 }
 
-void print_node(Node *node);
-
 vector *program(Token **token) {
   vector *code = new_vector();
   while ((*token)->kind != TK_EOF) {
@@ -81,8 +80,17 @@ vector *program(Token **token) {
 }
 
 Node *stmt(Token **token) {
-  Node *node = expr(token);
-  expect(token, ";");
+  Node *node;
+
+  if (consume_reserved(token, TK_RETURN)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_RETURN;
+    node->lhs = expr(token);
+  } else {
+    node = expr(token);
+  }
+
+  if (!consume(token, ";")) error_at((*token)->str, "';'ではないトークンです");
   return node;
 }
 
@@ -201,6 +209,9 @@ void print_node(Node *node) {
     print_node(node->lhs);
     printf("=");
     print_node(node->rhs);
+  } else if (node->kind == ND_RETURN) {
+    printf("return ");
+    print_node(node->lhs);
   } else {
     printf("(");
     print_node(node->lhs);

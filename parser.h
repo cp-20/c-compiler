@@ -17,6 +17,7 @@ typedef enum {
   ND_GE,      // >=
   ND_ASSIGN,  // = (代入)
   ND_LVAR,    // ローカル変数
+  ND_RETURN,  // return
   ND_NUM,     // 整数
 } NodeKind;
 

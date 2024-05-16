@@ -24,7 +24,7 @@ assert() {
 
   ./dist/1cc "$input" >./dist/tmp.ll
   if [ $? -ne 0 ]; then
-    echo "-e $ng Failed to compile \"$input\""
+    echo -e "$ng Failed to compile \"$input\""
     ng_count=$((ng_count + 1))
     return
   fi
@@ -102,6 +102,14 @@ assert "a = 3; a;" "3"
 assert "aaa = 3; bbbb = 5; aaa + bbbb;" "8"
 assert "a = 3; b = 5; a = 4; a + b;" "9"
 assert "a = b = 3; a * 2 * b;" "18"
+
+describe "return文"
+assert "return 3;" "3"
+assert "return 3; 5;" "3"
+assert "return 3; return 5;" "3"
+assert "a = 3; return a;" "3"
+assert "a = 3; b = 5; return a + b;" "8"
+assert "a = 3; b = 5; return a + b; return a * b;" "8"
 
 if [ $ng_count -eq 0 ]; then
   echo -e "\n${col_green}all $ok_count tests passed🎉${col_reset}"

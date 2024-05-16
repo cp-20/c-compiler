@@ -11,6 +11,7 @@ typedef enum {
   TK_RESERVED,  // 記号
   TK_IDENT,     // 識別子
   TK_NUM,       // 整数トークン
+  TK_RETURN,    // return
   TK_EOF,       // 入力の終わりを表すトークン
 } TokenKind;
 
@@ -45,7 +46,7 @@ bool is_space(char c);
 
 bool is_digit(char c);
 
-bool is_ident(char c);
+bool is_alnum(char c);
 
 bool is_special(char c);
 
@@ -53,6 +54,8 @@ bool is_special2(char *p);
 
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize(char *p);
+
+bool consume_reserved(Token **token, TokenKind kind);
 
 bool consume(Token **token, char *op);
 

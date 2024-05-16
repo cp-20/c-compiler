@@ -12,29 +12,46 @@ int gen_lval(Node* node, int* locals_r) {
   return locals_r[node->offset];
 }
 
-int generate_node(Node* node, vector* stack, int* locals_r) {
-  // 数字の場合はそのままスタックに積む
-  if (node->kind == ND_NUM) {
-    int* r_num = malloc(sizeof(int));
-    *r_num = r_register();
-    printf("  %%%d = alloca i32, align 4\n", *r_num);
-    printf("  store i32 %d, i32* %%%d, align 4\n", node->val, *r_num);
-    vec_push_last(stack, r_num);
-    return *r_num;
-  } else if (node->kind == ND_LVAR) {
-    // ローカル変数の場合はその値をスタックに積む
-    vec_push_last(stack, &locals_r[node->offset]);
-    return locals_r[node->offset];
-  } else if (node->kind == ND_ASSIGN) {
-    // 代入の場合は右辺を計算して左辺に代入する
-    int lptr = gen_lval(node->lhs, locals_r);
-    generate_node(node->rhs, stack, locals_r);
+bool returned = false;
 
-    int r_right = *(int*)vec_at(stack, stack->size - 1);
-    int r_right_val = r_register();
-    printf("  %%%d = load i32, i32* %%%d, align 4\n", r_right_val, r_right);
-    printf("  store i32 %%%d, i32* %%%d, align 4\n", r_right_val, lptr);
-    return r_right;
+int generate_node(Node* node, vector* stack, int* locals_r) {
+  switch (node->kind) {
+      // 数字の場合はそのままスタックに積む
+    case ND_NUM: {
+      int* r_num = malloc(sizeof(int));
+      *r_num = r_register();
+      printf("  %%%d = alloca i32, align 4\n", *r_num);
+      printf("  store i32 %d, i32* %%%d, align 4\n", node->val, *r_num);
+      vec_push_last(stack, r_num);
+      return *r_num;
+    } break;
+
+    // returnの場合は値を計算して返す
+    case ND_RETURN: {
+      printf("  ; return\n");
+      generate_node(node->lhs, stack, locals_r);
+      int r_result = *(int*)vec_at(stack, stack->size - 1);
+      returned = true;
+      return r_result;
+    } break;
+
+    // ローカル変数の場合はその値をスタックに積む
+    case ND_LVAR: {
+      vec_push_last(stack, &locals_r[node->offset]);
+      return locals_r[node->offset];
+    } break;
+
+    // 代入の場合は右辺を計算して左辺に代入する
+    case ND_ASSIGN: {
+      int lptr = gen_lval(node->lhs, locals_r);
+      generate_node(node->rhs, stack, locals_r);
+
+      int r_right = *(int*)vec_at(stack, stack->size - 1);
+      int r_right_val = r_register();
+      printf("  %%%d = load i32, i32* %%%d, align 4\n", r_right_val, r_right);
+      printf("  store i32 %%%d, i32* %%%d, align 4\n", r_right_val, lptr);
+      return r_right;
+    } break;
   }
 
   // 演算子の場合は左右のノードを先に計算する
@@ -144,6 +161,7 @@ int generate(vector* code) {
     print_node(vec_at(code, i));
     printf("\n");
     r_result = generate_node(vec_at(code, i), stack, locals_r);
+    if (returned) break;
   }
 
   return r_result;

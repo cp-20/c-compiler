@@ -3,6 +3,10 @@
 ok_count=0
 ng_count=0
 
+describe() {
+  echo -e "\n$1"
+}
+
 assert() {
   col_red="\x1b[31m"
   col_green="\x1b[32m"
@@ -37,18 +41,18 @@ assert() {
   fi
 }
 
-# 単項
+describe "単項"
 assert "0;" "0"
 assert "42;" "42"
 
-# 加減算のみ
+describe "加減算"
 assert "1 + 3;" "4"
 assert "3 - 2;" "1"
 assert "5 + 3 - 2;" "6"
 assert "5 - 3 - 2;" "0"
 assert "13 - 5 + 66;" "74"
 
-# 乗除算あり
+describe "乗除算あり"
 assert "2 * 3;" "6"
 assert "6 / 2;" "3"
 assert "2 * 3 + 4;" "10"
@@ -57,13 +61,13 @@ assert "2 * 3 * 4;" "24"
 assert "2 * 3 / 4;" "1"
 assert "2 / 3 * 4;" "0"
 
-# 括弧あり
+describe "括弧あり"
 assert "(2 + 3) * 4;" "20"
 assert "2 * (3 + 4);" "14"
 assert "2 * (3 + 4) * 5;" "70"
 assert "2 * (3 + 4) / 5;" "2"
 
-# 単項演算子
+describe "単項演算子"
 assert "-1;" "-1"
 assert "-(1 + 2);" "-3"
 assert "-(1 + 2) * 3;" "-9"
@@ -72,7 +76,7 @@ assert "+4 * 3;" "12"
 assert "3 * +2;" "6"
 assert "+(-3 * 4);" "-12"
 
-# 比較演算子
+describe "比較演算子"
 assert "3 == 3;" "1"
 assert "3 == 2 + 1;" "1"
 assert "3 == 2;" "0"
@@ -93,7 +97,7 @@ assert "3 >= 5;" "0"
 assert "6 >= 5;" "1"
 assert "5 >= 5;" "1"
 
-# ローカル変数
+describe "ローカル変数"
 assert "a = 3; a;" "3"
 assert "aaa = 3; bbbb = 5; aaa + bbbb;" "8"
 assert "a = 3; b = 5; a = 4; a + b;" "9"

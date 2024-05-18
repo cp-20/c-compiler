@@ -12,6 +12,9 @@ dist/%.o: %.c
 test: $(TARGET)
 	./test.sh
 
+single-test: $(TARGET)
+	./test.sh $(TEST)
+
 clean:
 	rm -f $(TARGET) dist/*.o dist/*~ dist/tmp*
 

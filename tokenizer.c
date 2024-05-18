@@ -102,6 +102,34 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // if文
+    if (strncmp(p, "if", 2) == 0 && !is_alnum(p[2])) {
+      cur = new_token(TK_IF, cur, p);
+      p += 2;
+      continue;
+    }
+
+    // else文
+    if (strncmp(p, "else", 4) == 0 && !is_alnum(p[4])) {
+      cur = new_token(TK_ELSE, cur, p);
+      p += 4;
+      continue;
+    }
+
+    // while文
+    if (strncmp(p, "while", 5) == 0 && !is_alnum(p[5])) {
+      cur = new_token(TK_WHILE, cur, p);
+      p += 5;
+      continue;
+    }
+
+    // for文
+    if (strncmp(p, "for", 3) == 0 && !is_alnum(p[3])) {
+      cur = new_token(TK_FOR, cur, p);
+      p += 3;
+      continue;
+    }
+
     // 識別子
     if (is_alnum(*p)) {
       char *start = p;

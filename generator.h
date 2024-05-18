@@ -6,6 +6,10 @@
 #include "parser.h"
 #include "vector.h"
 
-int generate(vector* code);
+int gen_lval(Node* node, int* locals_r);
 
-int generate_node(Node* node, vector* stack, int* locals);
+extern bool returned;
+
+char* generate_node(Node* node, vector* stack, int* locals);
+
+void generate(vector* code);

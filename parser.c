@@ -4,19 +4,6 @@
 #include "tokenizer.h"
 #include "vector.h"
 
-// EBNF grammar expression
-//
-// program    = stmt*
-// stmt       = expr ";" | "return" expr ";"
-// expr       = assign
-// assign     = equality ("=" assign)?
-// equality   = relational ("==" relational | "!=" relational)*
-// relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-// add        = mul ("+" mul | "-" mul)*
-// mul        = unary ("*" unary | "/" unary)*
-// unary      = ("+" | "-")? primary
-// primary    = num | ident | "(" expr ")"
-
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *node = calloc(1, sizeof(Node));
   node->kind = kind;
@@ -48,11 +35,63 @@ Node *stmt(Token **token) {
     node = calloc(1, sizeof(Node));
     node->kind = ND_RETURN;
     node->lhs = expr(token);
-  } else {
-    node = expr(token);
+    expect(token, ";");
+    return node;
   }
 
-  if (!consume(token, ";")) error_at((*token)->str, "';'ではないトークンです");
+  if (consume_reserved(token, TK_IF)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_IF;
+    expect(token, "(");
+    node->lhs = expr(token);
+    expect(token, ")");
+    node->rhs = stmt(token);
+    if (consume_reserved(token, TK_ELSE)) {
+      node->extra = stmt(token);
+    }
+    return node;
+  }
+
+  if (consume_reserved(token, TK_WHILE)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_WHILE;
+    expect(token, "(");
+    node->lhs = expr(token);
+    expect(token, ")");
+    node->rhs = stmt(token);
+    return node;
+  }
+
+  if (consume_reserved(token, TK_FOR)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_FOR;
+    expect(token, "(");
+    if (consume(token, ";")) {
+      node->lhs = NULL;
+    } else {
+      node->lhs = expr(token);
+      expect(token, ";");
+    }
+    if (consume(token, ";")) {
+      node->rhs = NULL;
+    } else {
+      node->rhs = expr(token);
+      expect(token, ";");
+    }
+    if (consume(token, ")")) {
+      node->extra = NULL;
+    } else {
+      node->extra = expr(token);
+      expect(token, ")");
+    }
+
+    node->extra2 = stmt(token);
+
+    return node;
+  }
+
+  node = expr(token);
+  expect(token, ";");
   return node;
 }
 
@@ -163,56 +202,97 @@ Node *primary(Token **token) {
 vector *parse(Token *token) { return program(&token); }
 
 void print_node(Node *node) {
+  if (node == NULL) return;
+
   if (node->kind == ND_NUM) {
     printf("%d", node->val);
-  } else if (node->kind == ND_LVAR) {
+    return;
+  }
+
+  if (node->kind == ND_LVAR) {
     printf("%c", 'a' + node->offset);
-  } else if (node->kind == ND_ASSIGN) {
-    print_node(node->lhs);
-    printf("=");
-    print_node(node->rhs);
-  } else if (node->kind == ND_RETURN) {
+    if (node->kind == ND_ASSIGN) {
+      print_node(node->lhs);
+      printf("=");
+      print_node(node->rhs);
+    }
+    return;
+  }
+
+  if (node->kind == ND_RETURN) {
     printf("return ");
     print_node(node->lhs);
-  } else {
-    printf("(");
-    print_node(node->lhs);
-    switch (node->kind) {
-      case ND_ADD:
-        printf("+");
-        break;
-      case ND_SUB:
-        printf("-");
-        break;
-      case ND_MUL:
-        printf("*");
-        break;
-      case ND_DIV:
-        printf("/");
-        break;
-      case ND_EQ:
-        printf("==");
-        break;
-      case ND_NE:
-        printf("!=");
-        break;
-      case ND_LT:
-        printf("<");
-        break;
-      case ND_LE:
-        printf("<=");
-        break;
-      case ND_GT:
-        printf(">");
-        break;
-      case ND_GE:
-        printf(">=");
-        break;
-      case ND_ASSIGN:
-        printf("=");
-        break;
-    }
-    print_node(node->rhs);
-    printf(")");
+    return;
   }
+
+  if (node->kind == ND_IF) {
+    printf("if (");
+    print_node(node->lhs);
+    printf(") ");
+    print_node(node->rhs);
+    if (node->extra) {
+      printf(" else ");
+      print_node(node->extra);
+    }
+    return;
+  }
+
+  if (node->kind == ND_WHILE) {
+    printf("while (");
+    print_node(node->lhs);
+    printf(") ");
+    print_node(node->rhs);
+    return;
+  }
+
+  if (node->kind == ND_FOR) {
+    printf("for (");
+    if (node->lhs) print_node(node->lhs);
+    printf(";");
+    if (node->rhs) print_node(node->rhs);
+    printf(";");
+    if (node->extra) print_node(node->extra);
+    printf(")");
+    return;
+  }
+
+  printf("(");
+  print_node(node->lhs);
+  switch (node->kind) {
+    case ND_ADD:
+      printf("+");
+      break;
+    case ND_SUB:
+      printf("-");
+      break;
+    case ND_MUL:
+      printf("*");
+      break;
+    case ND_DIV:
+      printf("/");
+      break;
+    case ND_EQ:
+      printf("==");
+      break;
+    case ND_NE:
+      printf("!=");
+      break;
+    case ND_LT:
+      printf("<");
+      break;
+    case ND_LE:
+      printf("<=");
+      break;
+    case ND_GT:
+      printf(">");
+      break;
+    case ND_GE:
+      printf(">=");
+      break;
+    case ND_ASSIGN:
+      printf("=");
+      break;
+  }
+  print_node(node->rhs);
+  printf(")");
 }

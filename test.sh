@@ -32,10 +32,10 @@ assert() {
   actual=$(./dist/tmp)
 
   if [ "$actual" = "$expected" ]; then
-    echo -e $ok "\"$input\" => \"$actual\""
+    echo -e $ok "\"$input\"" "$col_yellow=>$col_reset" "\"$actual\""
     ok_count=$((ok_count + 1))
   else
-    echo -e $ng " \"$input\" => $expected\""
+    echo -e $ng "\"$input\"" "$col_yellow=>$col_reset" "\"$expected\""
     echo -e "    actual: \"$actual\""
     ng_count=$((ng_count + 1))
   fi
@@ -110,6 +110,30 @@ assert "return 3; return 5;" "3"
 assert "a = 3; return a;" "3"
 assert "a = 3; b = 5; return a + b;" "8"
 assert "a = 3; b = 5; return a + b; return a * b;" "8"
+
+describe "if文"
+assert "if (1) return 3;" "3"
+assert "if (0) return 3; return 5;" "5"
+assert "if (1) return 3; return 5;" "3"
+assert "if (1) return 3; else return 5;" "3"
+assert "if (0) return 3; else return 5;" "5"
+assert "if (1) return 3; else return 5; return 7;" "3"
+assert "if (0) return 3; else return 5; return 7;" "5"
+assert "if (1) return 3; else if (0) return 5; return 7;" "3"
+assert "if (0) return 3; else if (1) return 5; return 7;" "5"
+assert "if (0) return 3; else if (0) return 5; return 7;" "7"
+assert "a = 3; if (a == 3) return 3; else return 7;" "3"
+assert "a = 3; if (a > 5) return 3; else return 7;" "7"
+
+describe "while文"
+assert "a = 0; while (a < 3) a = a + 1; return a;" "3"
+assert "a = 2; while (a < 16) a = a * 2; return a;" "16"
+assert "a = 0; b = 1; while (a < 55) a = ((b = (a + b)) - a); return a;" "55"
+
+describe "for文"
+assert "a = 0; for (i = 0; i < 3; i = i + 1) a = a + 1; return a;" "3"
+assert "a = 2; for (i = 0; i < 3; i = i + 1) a = a * 2; return a;" "16"
+assert "a = 0; b = 1; for (i = 0; i < 10; i = i + 1) a = ((b = (a + b)) - a); return a;" "55"
 
 if [ $ng_count -eq 0 ]; then
   echo -e "\n${col_green}all $ok_count tests passed🎉${col_reset}"

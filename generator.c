@@ -1,3 +1,5 @@
+#include "generator.h"
+
 #include <stdio.h>
 
 #include "error.h"

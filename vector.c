@@ -1,10 +1,6 @@
-#include <stdlib.h>
+#include "vector.h"
 
-typedef struct vector {
-  void **data;
-  int size;
-  int capacity;
-} vector;
+#include <stdlib.h>
 
 vector *new_vector() {
   vector *v = (vector *)malloc(sizeof(vector));

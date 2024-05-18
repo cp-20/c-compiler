@@ -3,6 +3,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+extern char *user_input;
+
 void init_error(char *p);
 
 // エラーを報告する

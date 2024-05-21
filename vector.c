@@ -5,7 +5,7 @@
 vector *new_vector() {
   vector *v = (vector *)malloc(sizeof(vector));
   v->capacity = 2;
-  v->data = (void **)malloc(sizeof(void *) * (unsigned long)v->capacity);
+  v->data = (void **)malloc(sizeof(void *) * v->capacity);
   v->size = 0;
   return v;
 }
@@ -15,10 +15,9 @@ void vec_push_last(vector *v, void *element) {
     if (v->capacity < 1024) {
       v->capacity *= 2;
     } else {
-      v->capacity = (int)(v->capacity * 1.25);
+      v->capacity *= 1.25;
     }
-    v->data =
-        (void **)realloc(v->data, sizeof(void *) * (unsigned long)v->capacity);
+    v->data = (void **)realloc(v->data, sizeof(void *) * v->capacity);
   }
   v->data[v->size++] = element;
 }
@@ -28,10 +27,9 @@ void vec_push_first(vector *v, void *element) {
     if (v->capacity < 1024) {
       v->capacity *= 2;
     } else {
-      v->capacity *= (int)(v->capacity * 1.25);
+      v->capacity *= 1.25;
     }
-    v->data =
-        (void **)realloc(v->data, sizeof(void *) * (unsigned long)v->capacity);
+    v->data = (void **)realloc(v->data, sizeof(void *) * v->capacity);
   }
   for (int i = v->size; i > 0; i--) {
     v->data[i] = v->data[i - 1];

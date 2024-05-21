@@ -12,8 +12,7 @@ LVar *locals;
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
 LVar *find_lvar(Token *tok) {
   for (LVar *var = locals; var; var = var->next)
-    if (var->len == tok->len &&
-        !memcmp(tok->str, var->name, (unsigned int)var->len))
+    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
       return var;
   return NULL;
 }
@@ -141,14 +140,14 @@ Token *tokenize(char *p) {
       } while (is_alnum(*p) || is_digit(*p));
 
       cur = new_token(TK_IDENT, cur, start);
-      cur->len = (int)(p - start);
+      cur->len = p - start;
       continue;
     }
 
     // 数字
     if (is_digit(*p)) {
       cur = new_token(TK_NUM, cur, p);
-      cur->val = (int)strtol(p, &p, 10);
+      cur->val = strtol(p, &p, 10);
       continue;
     }
 
@@ -167,7 +166,7 @@ bool consume_reserved(Token **token, TokenKind kind) {
 
 bool consume(Token **token, char *op) {
   if ((*token)->kind != TK_RESERVED || (int)strlen(op) != (*token)->len ||
-      memcmp((*token)->str, op, (unsigned long)(*token)->len))
+      memcmp((*token)->str, op, (*token)->len))
     return false;
   (*token) = (*token)->next;
   return true;
@@ -182,7 +181,7 @@ Token *consume_ident(Token **token) {
 
 void expect(Token **token, char *op) {
   if ((*token)->kind != TK_RESERVED || (int)strlen(op) != (*token)->len ||
-      memcmp((*token)->str, op, (unsigned long)(*token)->len))
+      memcmp((*token)->str, op, (*token)->len))
     error_at((*token)->str, "'%s'ではありません", op);
   *token = (*token)->next;
 }

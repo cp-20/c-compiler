@@ -1,6 +1,3 @@
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-nonliteral"
-
 #include "code.h"
 
 #include <stdarg.h>
@@ -19,7 +16,7 @@ Code* init_code() {
 void push_code(Code* code, char* fmt, ...) {
   if (code->size + 1 >= code->capacity) {
     code->capacity = (code->capacity == 0) ? 1 : code->capacity * 2;
-    char* new_code = realloc(code->code, (unsigned long)code->capacity);
+    char* new_code = realloc(code->code, code->capacity);
     if (new_code == NULL) {
       fprintf(stderr, "Memory allocation failed\n");
       exit(EXIT_FAILURE);
@@ -31,8 +28,7 @@ void push_code(Code* code, char* fmt, ...) {
   va_start(ap, fmt);
 
   int chars_written =
-      vsnprintf(code->code + code->size,
-                (unsigned long)(code->capacity - code->size), fmt, ap);
+      vsnprintf(code->code + code->size, code->capacity - code->size, fmt, ap);
   if (chars_written < 0) {
     fprintf(stderr, "Error occurred while formatting string\n");
     exit(EXIT_FAILURE);
@@ -45,7 +41,7 @@ void push_code(Code* code, char* fmt, ...) {
 void merge_code(Code* code, Code* other) {
   if (code->size + other->size + 1 >= code->capacity) {
     code->capacity = code->capacity * 2 + other->size + 1;
-    code->code = realloc(code->code, (unsigned long)code->capacity);
+    code->code = realloc(code->code, code->capacity);
   }
 
   sprintf(code->code + code->size, "%s", other->code);

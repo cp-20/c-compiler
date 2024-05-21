@@ -253,7 +253,7 @@ void generate(vector* code) {
 
   int local_count = 0;
   for (LVar* var = locals; var; var = var->next) local_count++;
-  int* locals_r = malloc(sizeof(int) * (unsigned long)local_count);
+  int* locals_r = malloc(sizeof(int) * local_count);
 
   // main2関数のはじまり
   printf("define dso_local i32 @main2() #0 {\n");

@@ -1,9 +1,8 @@
-#pragma clang diagnostic push
-
 #include "generator.h"
 
 #include <stdio.h>
 
+#include "code.h"
 #include "error.h"
 #include "llvm.h"
 #include "parser.h"
@@ -16,30 +15,24 @@ int gen_lval(Node* node, int* locals_r) {
   return locals_r[node->offset];
 }
 
-char* generate_node(Node* node, vector* stack, int* locals_r) {
-  char* code = malloc(65536);
-  int code_len = 0;
+Code* generate_node(Node* node, vector* stack, int* locals_r) {
+  Code* code = init_code();
 
   if (node->kind == ND_NUM) {
     // 数字の場合はそのままスタックに積む
-    int* r_num = malloc(sizeof(int));
-    *r_num = r_register();
-    code_len +=
-        sprintf(code + code_len, "  %%%d = alloca i32, align 4\n", *r_num);
-    code_len += sprintf(code + code_len, "  store i32 %d, i32* %%%d, align 4\n",
-                        node->val, *r_num);
+    int* r_num = r_register_ptr();
+    push_code(code, "  %%%d = alloca i32, align 4\n", *r_num);
+    push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val, *r_num);
     vec_push_last(stack, r_num);
     return code;
   } else if (node->kind == ND_RETURN) {
     // returnの場合は値を計算して返す
-    code_len += sprintf(code + code_len, "%s",
-                        generate_node(node->lhs, stack, locals_r));
+    merge_code(code, generate_node(node->lhs, stack, locals_r));
     int r_result = *(int*)vec_at(stack, stack->size - 1);
     int r_result_val = r_register();
-    code_len +=
-        sprintf(code + code_len, "  %%%d = load i32, i32* %%%d, align 4\n",
-                r_result_val, r_result);
-    code_len += sprintf(code + code_len, "  ret i32 %%%d\n", r_result_val);
+    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_result_val,
+              r_result);
+    push_code(code, "  ret i32 %%%d\n", r_result_val);
     // なぜかよくわからないけどレジスタを1個空けると上手く行く
     r_register();
     return code;
@@ -50,238 +43,183 @@ char* generate_node(Node* node, vector* stack, int* locals_r) {
   } else if (node->kind == ND_ASSIGN) {
     // 代入の場合は右辺を計算して左辺に代入する
     int lptr = gen_lval(node->lhs, locals_r);
-    code_len += sprintf(code + code_len, "%s",
-                        generate_node(node->rhs, stack, locals_r));
+    merge_code(code, generate_node(node->rhs, stack, locals_r));
 
     int r_right = *(int*)vec_at(stack, stack->size - 1);
     int r_right_val = r_register();
-    code_len +=
-        sprintf(code + code_len, "  %%%d = load i32, i32* %%%d, align 4\n",
-                r_right_val, r_right);
-    code_len +=
-        sprintf(code + code_len, "  store i32 %%%d, i32* %%%d, align 4\n",
-                r_right_val, lptr);
+    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_right_val,
+              r_right);
+    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_right_val,
+              lptr);
     return code;
   } else if (node->kind == ND_IF) {
     // ifの場合は条件式を計算して条件によって分岐する
     // 条件式を計算する
-    code_len += sprintf(code + code_len, "%s",
-                        generate_node(node->lhs, stack, locals_r));
+    merge_code(code, generate_node(node->lhs, stack, locals_r));
 
     int r_cond = *(int*)vec_at(stack, stack->size - 1);
     int r_cond_val = r_register();
-    code_len +=
-        sprintf(code + code_len, "  %%%d = load i32, i32* %%%d, align 4\n",
-                r_cond_val, r_cond);
-
+    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_cond_val,
+              r_cond);
     int r_cond_bool = r_register();
-    code_len += sprintf(code + code_len, "  %%%d = icmp ne i32 %%%d, 0\n",
-                        r_cond_bool, r_cond_val);
+    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_cond_bool, r_cond_val);
 
     int r_then_label = r_register();
 
-    char block[65536];
-    int block_len = 0;
-    block_len += sprintf(block + block_len, "%d:\n", r_then_label);
-    block_len += sprintf(block + block_len, "%s",
-                         generate_node(node->rhs, stack, locals_r));
+    Code* block = init_code();
+    push_code(block, "%d:\n", r_then_label);
+    merge_code(block, generate_node(node->rhs, stack, locals_r));
 
     int r_next_label = r_register();
 
     if (node->extra != NULL) {
-      char sub_block[65536];
-      int sub_block_len = 0;
-      sub_block_len +=
-          sprintf(sub_block + sub_block_len, "%d:\n", r_next_label);
-      sub_block_len += sprintf(sub_block + sub_block_len, "%s",
-                               generate_node(node->extra, stack, locals_r));
+      Code* sub_block = init_code();
+      push_code(sub_block, "%d:\n", r_next_label);
+      merge_code(sub_block, generate_node(node->extra, stack, locals_r));
       int r_final_label = r_register();
-      block_len +=
-          sprintf(block + block_len, "  br label %%%d\n", r_final_label);
-      block_len += sprintf(block + block_len, "%s", sub_block);
-      block_len +=
-          sprintf(block + block_len, "  br label %%%d\n", r_final_label);
-      block_len += sprintf(block + block_len, "%d:\n", r_final_label);
+      push_code(sub_block, "  br label %%%d\n", r_final_label);
+
+      merge_code(block, sub_block);
+      push_code(block, "%d:\n", r_final_label);
     } else {
-      block_len +=
-          sprintf(block + block_len, "  br label %%%d\n", r_next_label);
-      block_len += sprintf(block + block_len, "%d:\n", r_next_label);
+      push_code(block, "  br label %%%d\n", r_next_label);
+      push_code(block, "%d:\n", r_next_label);
     }
 
-    code_len +=
-        sprintf(code + code_len, "  br i1 %%%d, label %%%d, label %%%d\n",
-                r_cond_bool, r_then_label, r_next_label);
-    code_len += sprintf(code + code_len, "%s", block);
+    push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
+              r_then_label, r_next_label);
+    merge_code(code, block);
     return code;
   } else if (node->kind == ND_WHILE) {
     // whileの場合は条件式を計算して条件によってループする
     int r_start_label = r_register();
-    code_len += sprintf(code + code_len, "  br label %%%d\n", r_start_label);
-    code_len += sprintf(code + code_len, "%d:\n", r_start_label);
+    push_code(code, "  br label %%%d\n", r_start_label);
+    push_code(code, "%d:\n", r_start_label);
 
     // 条件式を計算する
-    code_len += sprintf(code + code_len, "%s",
-                        generate_node(node->lhs, stack, locals_r));
+    merge_code(code, generate_node(node->lhs, stack, locals_r));
     int r_cond = *(int*)vec_at(stack, stack->size - 1);
     int r_cond_val = r_register();
-    code_len +=
-        sprintf(code + code_len, "  %%%d = load i32, i32* %%%d, align 4\n",
-                r_cond_val, r_cond);
+    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_cond_val,
+              r_cond);
 
     int r_cond_bool = r_register();
-    code_len += sprintf(code + code_len, "  %%%d = icmp ne i32 %%%d, 0\n",
-                        r_cond_bool, r_cond_val);
+    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_cond_bool, r_cond_val);
 
-    char block[65536];
-    int block_len = 0;
+    Code* block = init_code();
 
     int r_next_label = r_register();
-    block_len += sprintf(block + block_len, "%d:\n", r_next_label);
-    block_len += sprintf(block + block_len, "%s",
-                         generate_node(node->rhs, stack, locals_r));
-    block_len += sprintf(block + block_len, "  br label %%%d\n", r_start_label);
+    push_code(block, "%d:\n", r_next_label);
+    merge_code(block, generate_node(node->rhs, stack, locals_r));
+    push_code(block, "  br label %%%d\n", r_start_label);
 
     int r_end_label = r_register();
-    code_len +=
-        sprintf(code + code_len, "  br i1 %%%d, label %%%d, label %%%d\n",
-                r_cond_bool, r_next_label, r_end_label);
-    code_len += sprintf(code + code_len, "%s", block);
-    code_len += sprintf(code + code_len, "%d:\n", r_end_label);
+    push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
+              r_next_label, r_end_label);
+    merge_code(code, block);
+    push_code(code, "%d:\n", r_end_label);
     return code;
   } else if (node->kind == ND_FOR) {
     // forの場合は初期化式、条件式、ループ内式の順に実行する
     // 初期化式
-    code_len += sprintf(code + code_len, "%s",
-                        generate_node(node->lhs, stack, locals_r));
+    merge_code(code, generate_node(node->lhs, stack, locals_r));
 
     int r_start_label = r_register();
-    code_len += sprintf(code + code_len, "  br label %%%d\n", r_start_label);
-    code_len += sprintf(code + code_len, "%d:\n", r_start_label);
+    push_code(code, "  br label %%%d\n", r_start_label);
+    push_code(code, "%d:\n", r_start_label);
 
     // 条件式を計算する
-    code_len += sprintf(code + code_len, "%s",
-                        generate_node(node->rhs, stack, locals_r));
+    merge_code(code, generate_node(node->rhs, stack, locals_r));
     int r_cond = *(int*)vec_at(stack, stack->size - 1);
     int r_cond_val = r_register();
-    code_len +=
-        sprintf(code + code_len, "  %%%d = load i32, i32* %%%d, align 4\n",
-                r_cond_val, r_cond);
+    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_cond_val,
+              r_cond);
 
     int r_cond_bool = r_register();
-    code_len += sprintf(code + code_len, "  %%%d = icmp ne i32 %%%d, 0\n",
-                        r_cond_bool, r_cond_val);
+    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_cond_bool, r_cond_val);
 
-    char block[65536];
-    int block_len = 0;
+    Code* block = init_code();
 
     int r_next_label = r_register();
-    block_len += sprintf(block + block_len, "%d:\n", r_next_label);
-    block_len += sprintf(block + block_len, "%s",
-                         generate_node(node->extra2, stack, locals_r));
-    block_len += sprintf(block + block_len, "%s",
-                         generate_node(node->extra, stack, locals_r));
-    block_len += sprintf(block + block_len, "  br label %%%d\n", r_start_label);
+    push_code(block, "%d:\n", r_next_label);
+    merge_code(block, generate_node(node->extra2, stack, locals_r));
+    merge_code(block, generate_node(node->extra, stack, locals_r));
+    push_code(block, "  br label %%%d\n", r_start_label);
 
     int r_end_label = r_register();
-    code_len +=
-        sprintf(code + code_len, "  br i1 %%%d, label %%%d, label %%%d\n",
-                r_cond_bool, r_next_label, r_end_label);
-    code_len += sprintf(code + code_len, "%s", block);
-    code_len += sprintf(code + code_len, "%d:\n", r_end_label);
+    push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
+              r_next_label, r_end_label);
+    merge_code(code, block);
+    push_code(code, "%d:\n", r_end_label);
     return code;
   } else if (node->kind == ND_BLOCK) {
     // ブロックの場合は各文を順に実行する
     for (int i = 0; i < node->stmts->size; i++) {
-      code_len +=
-          sprintf(code + code_len, "%s",
-                  generate_node(vec_at(node->stmts, i), stack, locals_r));
+      merge_code(code, generate_node(vec_at(node->stmts, i), stack, locals_r));
     }
     return code;
   }
 
   // 演算子の場合は左右のノードを先に計算する
-  code_len +=
-      sprintf(code + code_len, "%s", generate_node(node->lhs, stack, locals_r));
-  code_len +=
-      sprintf(code + code_len, "%s", generate_node(node->rhs, stack, locals_r));
+  merge_code(code, generate_node(node->lhs, stack, locals_r));
+  merge_code(code, generate_node(node->rhs, stack, locals_r));
 
   // スタックから2つ取り出す
   int r_right = *(int*)vec_pop(stack);
   int r_left = *(int*)vec_pop(stack);
   int r_left_val = r_register();
   int r_right_val = r_register();
-  code_len +=
-      sprintf(code + code_len, "  %%%d = load i32, i32* %%%d, align 4\n",
-              r_left_val, r_left);
-  code_len +=
-      sprintf(code + code_len, "  %%%d = load i32, i32* %%%d, align 4\n",
-              r_right_val, r_right);
+  push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_left_val,
+            r_left);
+  push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_right_val,
+            r_right);
 
   // 計算する
   int r_result_val = r_register();
-  if (node->kind == ND_ADD) {
-    code_len += sprintf(code + code_len, "  %%%d = add nsw i32 %%%d, %%%d\n",
-                        r_result_val, r_left_val, r_right_val);
-  } else if (node->kind == ND_SUB) {
-    code_len += sprintf(code + code_len, "  %%%d = sub nsw i32 %%%d, %%%d\n",
-                        r_result_val, r_left_val, r_right_val);
-  } else if (node->kind == ND_MUL) {
-    code_len += sprintf(code + code_len, "  %%%d = mul nsw i32 %%%d, %%%d\n",
-                        r_result_val, r_left_val, r_right_val);
+  if (node->kind == ND_ADD || node->kind == ND_SUB || node->kind == ND_MUL) {
+    char op[4];
+    if (node->kind == ND_ADD) {
+      sprintf(op, "add");
+    } else if (node->kind == ND_SUB) {
+      sprintf(op, "sub");
+    } else if (node->kind == ND_MUL) {
+      sprintf(op, "mul");
+    }
+    push_code(code, "  %%%d = %s nsw i32 %%%d, %%%d\n", r_result_val, op,
+              r_left_val, r_right_val);
   } else if (node->kind == ND_DIV) {
-    code_len += sprintf(code + code_len, "  %%%d = sdiv i32 %%%d, %%%d\n",
-                        r_result_val, r_left_val, r_right_val);
-  } else if (node->kind == ND_EQ) {
+    push_code(code, "  %%%d = sdiv i32 %%%d, %%%d\n", r_result_val, r_left_val,
+              r_right_val);
+  } else if (node->kind == ND_EQ || node->kind == ND_NE ||
+             node->kind == ND_LT || node->kind == ND_LE ||
+             node->kind == ND_GT || node->kind == ND_GE) {
+    char op[4];
+    if (node->kind == ND_EQ) {
+      sprintf(op, "eq");
+    } else if (node->kind == ND_NE) {
+      sprintf(op, "ne");
+    } else if (node->kind == ND_LT) {
+      sprintf(op, "slt");
+    } else if (node->kind == ND_LE) {
+      sprintf(op, "sle");
+    } else if (node->kind == ND_GT) {
+      sprintf(op, "sgt");
+    } else if (node->kind == ND_GE) {
+      sprintf(op, "sge");
+    }
     int r_middle = r_register() - 1;
     r_result_val++;
-    code_len += sprintf(code + code_len, "  %%%d = icmp eq i32 %%%d, %%%d\n",
-                        r_middle, r_left_val, r_right_val);
-    code_len += sprintf(code + code_len, "  %%%d = zext i1 %%%d to i32\n",
-                        r_result_val, r_middle);
-  } else if (node->kind == ND_NE) {
-    int r_middle = r_register() - 1;
-    r_result_val++;
-    code_len += sprintf(code + code_len, "  %%%d = icmp ne i32 %%%d, %%%d\n",
-                        r_middle, r_left_val, r_right_val);
-    code_len += sprintf(code + code_len, "  %%%d = zext i1 %%%d to i32\n",
-                        r_result_val, r_middle);
-  } else if (node->kind == ND_LT) {
-    int r_middle = r_register() - 1;
-    r_result_val++;
-    code_len += sprintf(code + code_len, "  %%%d = icmp slt i32 %%%d, %%%d\n",
-                        r_middle, r_left_val, r_right_val);
-    code_len += sprintf(code + code_len, "  %%%d = zext i1 %%%d to i32\n",
-                        r_result_val, r_middle);
-  } else if (node->kind == ND_LE) {
-    int r_middle = r_register() - 1;
-    r_result_val++;
-    code_len += sprintf(code + code_len, "  %%%d = icmp sle i32 %%%d, %%%d\n",
-                        r_middle, r_left_val, r_right_val);
-    code_len += sprintf(code + code_len, "  %%%d = zext i1 %%%d to i32\n",
-                        r_result_val, r_middle);
-  } else if (node->kind == ND_GT) {
-    int r_middle = r_register() - 1;
-    r_result_val++;
-    code_len += sprintf(code + code_len, "  %%%d = icmp sgt i32 %%%d, %%%d\n",
-                        r_middle, r_left_val, r_right_val);
-    code_len += sprintf(code + code_len, "  %%%d = zext i1 %%%d to i32\n",
-                        r_result_val, r_middle);
-  } else if (node->kind == ND_GE) {
-    int r_middle = r_register() - 1;
-    r_result_val++;
-    code_len += sprintf(code + code_len, "  %%%d = icmp sge i32 %%%d, %%%d\n",
-                        r_middle, r_left_val, r_right_val);
-    code_len += sprintf(code + code_len, "  %%%d = zext i1 %%%d to i32\n",
-                        r_result_val, r_middle);
+    push_code(code, "  %%%d = icmp %s i32 %%%d, %%%d\n", r_middle, op,
+              r_left_val, r_right_val);
+    push_code(code, "  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
   }
 
   // 結果を再びスタックに積む
-  int r_result = r_register();
-  code_len +=
-      sprintf(code + code_len, "  %%%d = alloca i32, align 4\n", r_result);
-  code_len += sprintf(code + code_len, "  store i32 %%%d, i32* %%%d, align 4\n",
-                      r_result_val, r_result);
-  vec_push_last(stack, &r_result);
+  int* r_result = r_register_ptr();
+  push_code(code, "  %%%d = alloca i32, align 4\n", *r_result);
+  push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_result_val,
+            *r_result);
+  vec_push_last(stack, r_result);
 
   return code;
 }
@@ -332,7 +270,8 @@ void generate(vector* code) {
     printf("  ; ");
     print_node(vec_at(code, i));
     printf("\n");
-    printf("%s", generate_node(vec_at(code, i), stack, locals_r));
+    Code* result = generate_node(vec_at(code, i), stack, locals_r);
+    printf("%s", result->code);
   }
 
   // スタックトップを返す

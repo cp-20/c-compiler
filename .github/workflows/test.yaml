@@ -1,0 +1,13 @@
+name: Test 1cc
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install prerequisites
+        run: sudo apt-get install -y clang llvm make
+
+      - name: Test
+        run: make test

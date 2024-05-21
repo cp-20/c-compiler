@@ -203,6 +203,15 @@ char* generate_node(Node* node, vector* stack, int* locals_r) {
       code_len += sprintf(code + code_len, "%d:\n", r_end_label);
       return code;
     } break;
+
+    case ND_BLOCK: {
+      for (int i = 0; i < node->stmts->size; i++) {
+        code_len +=
+            sprintf(code + code_len, "%s",
+                    generate_node(vec_at(node->stmts, i), stack, locals_r));
+      }
+      return code;
+    } break;
   }
 
   // 演算子の場合は左右のノードを先に計算する

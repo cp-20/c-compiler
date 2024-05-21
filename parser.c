@@ -31,6 +31,16 @@ vector *program(Token **token) {
 Node *stmt(Token **token) {
   Node *node;
 
+  if (consume(token, "{")) {
+    vector *stmts = new_vector();
+    while (!consume(token, "}")) {
+      vec_push_last(stmts, stmt(token));
+    }
+    node = new_node(ND_BLOCK, NULL, NULL);
+    node->stmts = stmts;
+    return node;
+  }
+
   if (consume_reserved(token, TK_RETURN)) {
     node = calloc(1, sizeof(Node));
     node->kind = ND_RETURN;
@@ -253,6 +263,16 @@ void print_node(Node *node) {
     printf(";");
     if (node->extra) print_node(node->extra);
     printf(")");
+    return;
+  }
+
+  if (node->kind == ND_BLOCK) {
+    printf("{ ");
+    for (int i = 0; i < node->stmts->size; i++) {
+      print_node(vec_at(node->stmts, i));
+      printf("; ");
+    }
+    printf("}");
     return;
   }
 

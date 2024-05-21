@@ -1,12 +1,14 @@
 CFLAGS=-std=c11 -g -static -Werror -Wall -Wextra
-SRCS=$(wildcard *.c)
+SRCS=$(notdir $(wildcard src/*.c))
 OBJS=$(addprefix dist/,$(notdir $(SRCS:.c=.o)))
 TARGET=dist/1cc
+
+1cc: $(TARGET)
 
 $(TARGET): $(OBJS)
 	clang $(CFLAGS) -o $@ $^
 
-dist/%.o: %.c
+dist/%.o: src/%.c
 	clang $(CFLAGS) -c -o $@ $<
 
 test: $(TARGET)

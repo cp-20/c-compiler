@@ -1,3 +1,3 @@
 #pragma once
 
-int r_register();
+int r_register(void);

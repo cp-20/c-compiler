@@ -20,17 +20,17 @@ typedef enum {
 } TokenKind;
 
 // トークンの型
-typedef struct Token {
-  TokenKind kind;      // トークンの型
-  struct Token *next;  // 次の入力トークン
-  int val;             // kindがTK_NUMの場合、その数値
-  char *str;           // トークン文字列
-  int len;             // トークンの長さ
-} Token;
-
-typedef struct LVar LVar;
+typedef struct Token Token;
+struct Token {
+  TokenKind kind;  // トークンの型
+  Token *next;     // 次の入力トークン
+  int val;         // kindがTK_NUMの場合、その数値
+  char *str;       // トークン文字列
+  int len;         // トークンの長さ
+};
 
 // ローカル変数の型
+typedef struct LVar LVar;
 struct LVar {
   LVar *next;  // 次の変数かNULL
   char *name;  // 変数の名前

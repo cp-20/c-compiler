@@ -12,4 +12,8 @@ extern bool returned;
 
 char* generate_node(Node* node, vector* stack, int* locals);
 
+void generate_header(void);
+
+void generate_printf(void);
+
 void generate(vector* code);

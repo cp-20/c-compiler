@@ -6,7 +6,7 @@ typedef struct vector {
   int capacity;
 } vector;
 
-vector *new_vector();
+vector *new_vector(void);
 void vec_push_last(vector *v, void *element);
 void vec_push_first(vector *v, void *element);
 void *vec_pop(vector *v);

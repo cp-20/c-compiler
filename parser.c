@@ -24,7 +24,7 @@ vector *program(Token **token) {
   while ((*token)->kind != TK_EOF) {
     Node *statement = stmt(token);
     vec_push_last(code, statement);
-  };
+  }
   return code;
 }
 
@@ -278,40 +278,28 @@ void print_node(Node *node) {
 
   printf("(");
   print_node(node->lhs);
-  switch (node->kind) {
-    case ND_ADD:
-      printf("+");
-      break;
-    case ND_SUB:
-      printf("-");
-      break;
-    case ND_MUL:
-      printf("*");
-      break;
-    case ND_DIV:
-      printf("/");
-      break;
-    case ND_EQ:
-      printf("==");
-      break;
-    case ND_NE:
-      printf("!=");
-      break;
-    case ND_LT:
-      printf("<");
-      break;
-    case ND_LE:
-      printf("<=");
-      break;
-    case ND_GT:
-      printf(">");
-      break;
-    case ND_GE:
-      printf(">=");
-      break;
-    case ND_ASSIGN:
-      printf("=");
-      break;
+  if (node->kind == ND_ADD) {
+    printf("+");
+  } else if (node->kind == ND_SUB) {
+    printf("-");
+  } else if (node->kind == ND_MUL) {
+    printf("*");
+  } else if (node->kind == ND_DIV) {
+    printf("/");
+  } else if (node->kind == ND_EQ) {
+    printf("==");
+  } else if (node->kind == ND_NE) {
+    printf("!=");
+  } else if (node->kind == ND_LT) {
+    printf("<");
+  } else if (node->kind == ND_LE) {
+    printf("<=");
+  } else if (node->kind == ND_GT) {
+    printf(">");
+  } else if (node->kind == ND_GE) {
+    printf(">=");
+  } else if (node->kind == ND_ASSIGN) {
+    printf("=");
   }
   print_node(node->rhs);
   printf(")");

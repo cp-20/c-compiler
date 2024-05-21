@@ -29,7 +29,6 @@ typedef struct Node Node;
 
 // 抽象構文木のノードの型
 struct Node {
-  NodeKind kind;  // ノードの型
   Node *lhs;      // 左辺
   Node *rhs;      // 右辺
   Node *extra;    // 追加のノード
@@ -37,6 +36,7 @@ struct Node {
   vector *stmts;  // kindがND_BLOCKの場合のみ使う
   int val;        // kindがND_NUMの場合のみ使う
   int offset;     // kindがND_LVARの場合のみ使う
+  NodeKind kind;  // ノードの型
 };
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs);

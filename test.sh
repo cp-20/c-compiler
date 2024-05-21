@@ -1,10 +1,13 @@
 #!/bin/bash
 
-ok_count=0
-ng_count=0
+# テストの結果を格納するための配列
+pids=()
+test_names=()
+result_files=()
 
+current_test_name=""
 describe() {
-  echo -e "\n$1"
+  current_test_name="$1"
 }
 
 assert() {
@@ -14,6 +17,7 @@ assert() {
   col_blue="\x1b[34m"
   col_magenta="\x1b[35m"
   col_cyan="\x1b[36m"
+  col_cyan="\x1b[36m"
   col_reset="\x1b[0m"
 
   ok="$col_green[OK]$col_reset"
@@ -22,25 +26,48 @@ assert() {
   input="$1"
   expected="$2"
 
-  ./dist/1cc "$input" >./dist/tmp.ll
-  if [ $? -ne 0 ]; then
-    echo -e "$ng Failed to compile \"$input\""
-    ng_count=$((ng_count + 1))
-    return
-  fi
-  clang ./dist/tmp.ll -o ./dist/tmp
-  actual=$(./dist/tmp)
+  # Create a temporary file for storing the result
+  result_file=$(mktemp)
 
-  if [ "$actual" = "$expected" ]; then
-    echo -e $ok "\"$input\"" "$col_yellow=>$col_reset" "\"$actual\""
-    ok_count=$((ok_count + 1))
-  else
-    echo -e $ng "\"$input\"" "$col_yellow=>$col_reset" "\"$expected\""
-    echo -e "    actual: \"$actual\""
-    ng_count=$((ng_count + 1))
-  fi
+  {
+    tmp_ll_file="$(mktemp).ll"
+    clang_output=$(mktemp)
+    compiler_stderr=$(./dist/1cc "$input" >"$tmp_ll_file" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo -e "$ng Failed to compile \"$input\"" >"$result_file"
+      echo -e "$compiler_stderr" >>"$result_file"
+      exit 1
+    fi
+    clang_stderr=$(clang -v "$tmp_ll_file" -o $clang_output 2>&1)
+    if [ $? -ne 0 ]; then
+      echo -e "$ng Invalid output by \"$input\"" >"$result_file"
+      echo -e "$clang_stderr" >>"$result_file"
+      exit 1
+    fi
+    actual=$($clang_output)
+    if [ $? -ne 0 ]; then
+      echo -e "$ng Failed to execute \"$input\"" >"$result_file"
+      exit 1
+    fi
+
+    if [ "$actual" = "$expected" ]; then
+      echo -e $ok "\"$input\"" "$col_yellow=>$col_reset" "\"$actual\"" >"$result_file"
+      exit 0
+    else
+      echo -e $ng "\"$input\"" "$col_yellow=>$col_reset" "\"$expected\"" >>"$result_file"
+      echo -e "    actual: \"$actual\"" >>"$result_file"
+      exit 1
+    fi
+    rm "$tmp_ll_file" "$clang_output"
+  } &
+
+  # Store the process ID and result file for later
+  pids+=($!)
+  test_names+=("$current_test_name")
+  result_files+=("$result_file")
 }
 
+# テストの定義
 describe "単項"
 assert "0;" "0"
 assert "42;" "42"
@@ -139,6 +166,32 @@ describe "ブロック"
 assert "{ return 3; }" "3"
 assert "{ a = 3; return a; }" "3"
 assert "a = 0; b = 1; for (i = 0; i < 10; i = i + 1) { tmp = b; b = a + b; a = tmp; } return a;" "55"
+
+# 全てのテストが完了するのを待つ
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
+
+# 結果を表示する
+ok_count=0
+ng_count=0
+current_test_name=""
+for i in $(seq 0 $((${#result_files[@]} - 1))); do
+  result_file="${result_files[$i]}"
+  test_name="${test_names[$i]}"
+  if [ "$current_test_name" != "$test_name" ]; then
+    echo -e "\n$current_test_name"
+    current_test_name="$test_name"
+  fi
+  result=$(cat "$result_file")
+  echo -e "$result"
+  if [[ "$result" =~ \[NG\] ]]; then
+    ng_count=$((ng_count + 1))
+  else
+    ok_count=$((ok_count + 1))
+  fi
+  rm "$result_file"
+done
 
 if [ $ng_count -eq 0 ]; then
   echo -e "\n${col_green}all $ok_count tests passed🎉${col_reset}"

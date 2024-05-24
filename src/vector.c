@@ -58,6 +58,16 @@ void *vec_at(vector *v, int index) {
   return v->data[index];
 }
 
+void *vec_first(vector *v) {
+  if (v->size == 0) return NULL;
+  return v->data[0];
+}
+
+void *vec_last(vector *v) {
+  if (v->size == 0) return NULL;
+  return v->data[v->size - 1];
+}
+
 void vec_free(vector *v) {
   free(v->data);
   free(v);

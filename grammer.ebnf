@@ -1,4 +1,5 @@
-program    = stmt*
+program    = function*
+function   = ident "(" ident ("," ident)* ")" "{" stmt* "}"
 stmt       = expr ";"
            | "{" stmt* "}"
            | "if" "(" expr ")" stmt ("else" stmt)?
@@ -12,4 +13,6 @@ relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 add        = mul ("+" mul | "-" mul)*
 mul        = unary ("*" unary | "/" unary)*
 unary      = ("+" | "-")? primary
-primary    = num | ident | "(" expr ")"
+primary    = num
+           | ident ("(" ident ("," ident)* ")")?
+           | "(" expr ")"

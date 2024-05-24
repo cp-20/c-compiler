@@ -9,12 +9,12 @@
 
 int gen_lval(Node* node, int* locals_r);
 
-extern bool returned;
+Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx);
 
-Code* generate_node(Node* node, vector* stack, int* locals);
+void generate_func(Function* func);
 
 void generate_header(void);
 
-void generate_printf(void);
+void generate_print(void);
 
 void generate(vector* code);

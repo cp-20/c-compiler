@@ -2,13 +2,20 @@
 
 #include <stdlib.h>
 
-int r_register() {
-  static int i = 1;
-  return i++;
+typedef int* rctx;
+
+rctx r_init() {
+  int* i = malloc(sizeof(int));
+  *i = 0;
+  return i;
 }
 
-int* r_register_ptr() {
+void r_free(rctx rctx) { free(rctx); }
+
+int r_register(rctx rctx) { return (*rctx)++; }
+
+int* r_register_ptr(rctx rctx) {
   int* i = malloc(sizeof(int));
-  *i = r_register();
+  *i = r_register(rctx);
   return i;
 }

@@ -6,17 +6,6 @@
 
 #include "error.h"
 
-// ローカル変数
-LVar *locals;
-
-// 変数を名前で検索する。見つからなかった場合はNULLを返す。
-LVar *find_lvar(Token *tok) {
-  for (LVar *var = locals; var; var = var->next)
-    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
-      return var;
-  return NULL;
-}
-
 Token *new_token(TokenKind kind, Token *cur, char *str) {
   Token *tok = calloc(1, sizeof(Token));
   tok->kind = kind;
@@ -55,6 +44,7 @@ bool is_special(char c) {
   if (c == ';') return true;
   if (c == '{') return true;
   if (c == '}') return true;
+  if (c == ',') return true;
   return false;
 }
 
@@ -68,9 +58,6 @@ bool is_special2(char *p) {
 
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize(char *p) {
-  // 初期化
-  locals = NULL;
-
   Token head;
   head.next = NULL;
   Token *cur = &head;

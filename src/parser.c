@@ -4,6 +4,17 @@
 #include "tokenizer.h"
 #include "vector.h"
 
+// 変数を名前で検索する。見つからなかった場合はNULLを返す。
+LVar *find_lvar(Token *tok, vector *locals) {
+  for (int i = 0; i < locals->size; i++) {
+    LVar *lvar = vec_at(locals, i);
+    if (lvar->len == tok->len && !memcmp(tok->str, lvar->name, lvar->len)) {
+      return lvar;
+    }
+  }
+  return NULL;
+}
+
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
   Node *node = calloc(1, sizeof(Node));
   node->kind = kind;
@@ -22,10 +33,53 @@ Node *new_node_num(int val) {
 vector *program(Token **token) {
   vector *code = new_vector();
   while ((*token)->kind != TK_EOF) {
-    Node *statement = stmt(token);
-    vec_push_last(code, statement);
+    Function *func = function(token);
+    vec_push_last(code, func);
   }
   return code;
+}
+
+static vector *global_locals;
+
+Function *function(Token **token) {
+  Function *func = calloc(1, sizeof(Function));
+
+  Token *tok = consume_ident(token);
+  func->name = tok->str;
+  func->len = tok->len;
+
+  expect(token, "(");
+  vector *locals = new_vector();
+  int argc = 0;
+  while (!consume(token, ")")) {
+    Token *tok = consume_ident(token);
+    if (tok == NULL) {
+      error_at((*token)->str, "識別子ではありません");
+    }
+    LVar *lvar = find_lvar(tok, locals);
+    if (lvar != NULL) {
+      error_at(tok->str, "変数が二重定義されています");
+    }
+    lvar = calloc(1, sizeof(LVar));
+    lvar->name = tok->str;
+    lvar->len = tok->len;
+    lvar->offset = locals->size;
+    vec_push_last(locals, lvar);
+    argc++;
+    consume(token, ",");
+  }
+  func->argc = argc;
+  func->locals = locals;
+  global_locals = locals;
+
+  expect(token, "{");
+  vector *stmts = new_vector();
+  while (!consume(token, "}")) {
+    vec_push_last(stmts, stmt(token));
+  }
+  func->body = stmts;
+
+  return func;
 }
 
 Node *stmt(Token **token) {
@@ -187,19 +241,29 @@ Node *primary(Token **token) {
   Token *tok = consume_ident(token);
   if (tok) {
     Node *node = calloc(1, sizeof(Node));
-    node->kind = ND_LVAR;
 
-    LVar *lvar = find_lvar(tok);
+    if (consume(token, "(")) {
+      node->kind = ND_CALL;
+      node->call = calloc(1, sizeof(Call));
+      node->call->name = tok->str;
+      node->call->len = tok->len;
+      node->call->args = new_vector();
+      while (!consume(token, ")")) {
+        vec_push_last(node->call->args, expr(token));
+        if (consume(token, ")")) break;
+        expect(token, ",");
+      }
+      return node;
+    }
+
+    node->kind = ND_LVAR;
+    LVar *lvar = find_lvar(tok, global_locals);
     if (lvar == NULL) {
       lvar = calloc(1, sizeof(LVar));
-      lvar->next = locals;
       lvar->name = tok->str;
       lvar->len = tok->len;
-      if (locals == NULL)
-        lvar->offset = 0;
-      else
-        lvar->offset = locals->offset + 1;
-      locals = lvar;
+      lvar->offset = global_locals->size;
+      vec_push_last(global_locals, lvar);
     }
     node->offset = lvar->offset;
     return node;
@@ -273,6 +337,16 @@ void print_node(Node *node) {
       printf("; ");
     }
     printf("}");
+    return;
+  }
+
+  if (node->kind == ND_CALL) {
+    printf("%.*s(", node->call->len, node->call->name);
+    for (int i = 0; i < node->call->args->size; i++) {
+      if (i > 0) printf(", ");
+      print_node(vec_at(node->call->args, i));
+    }
+    printf(")");
     return;
   }
 

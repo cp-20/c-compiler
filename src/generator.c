@@ -78,6 +78,7 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
       merge_code(sub_block, generate_node(node->extra, stack, locals_r, rctx));
       int r_final_label = r_register(rctx);
       push_code(sub_block, "  br label %%%d\n", r_final_label);
+      push_code(block, "  br label %%%d\n", r_final_label);
 
       merge_code(block, sub_block);
       push_code(block, "%d:\n", r_final_label);

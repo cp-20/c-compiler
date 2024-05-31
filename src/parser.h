@@ -15,6 +15,8 @@ typedef enum {
   ND_LE,      // <=
   ND_GT,      // >
   ND_GE,      // >=
+  ND_AND,     // &&
+  ND_OR,      // ||
   ND_ASSIGN,  // = (代入)
   ND_LVAR,    // ローカル変数
   ND_RETURN,  // return
@@ -77,6 +79,7 @@ vector *program(Token **token);
 Function *function(Token **token);
 Node *stmt(Token **token);
 Node *expr(Token **token);
+Node *logical(Token **token);
 Node *assign(Token **token);
 Node *equality(Token **token);
 Node *relational(Token **token);

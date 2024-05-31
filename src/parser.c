@@ -159,7 +159,20 @@ Node *stmt(Token **token) {
   return node;
 }
 
-Node *expr(Token **token) { return assign(token); }
+Node *expr(Token **token) { return logical(token); }
+
+Node *logical(Token **token) {
+  Node *node = assign(token);
+
+  for (;;) {
+    if (consume(token, "&&"))
+      node = new_node(ND_AND, node, assign(token));
+    else if (consume(token, "||"))
+      node = new_node(ND_OR, node, assign(token));
+    else
+      return node;
+  }
+}
 
 Node *assign(Token **token) {
   Node *node = equality(token);
@@ -227,6 +240,8 @@ Node *unary(Token **token) {
   if (consume(token, "+")) return primary(token);
   if (consume(token, "-"))
     return new_node(ND_SUB, new_node_num(0), primary(token));
+  if (consume(token, "!"))
+    return new_node(ND_EQ, primary(token), new_node_num(0));
   return primary(token);
 }
 

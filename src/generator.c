@@ -250,6 +250,22 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
     push_code(code, "  %%%d = icmp %s i32 %%%d, %%%d\n", r_middle, op,
               r_left_val, r_right_val);
     push_code(code, "  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+  } else if (node->kind == ND_AND || node->kind == ND_OR) {
+    char op[4];
+    if (node->kind == ND_AND) {
+      sprintf(op, "and");
+    } else if (node->kind == ND_OR) {
+      sprintf(op, "or");
+    }
+    int r_middle_l = r_register(rctx) - 1;
+    int r_middle_r = r_register(rctx) - 1;
+    int r_middle = r_register(rctx) - 1;
+    r_result_val += 3;
+    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_middle_l, r_left_val);
+    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_middle_r, r_right_val);
+    push_code(code, "  %%%d = %s i1 %%%d, %%%d\n", r_middle, op, r_middle_l,
+              r_middle_r);
+    push_code(code, "  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
   }
 
   // 結果を再びスタックに積む

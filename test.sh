@@ -61,6 +61,9 @@ assert() {
       exit 1
     fi
 
+    # 改行を空白に直す
+    actual=$(echo ${actual} | sed -e "s/[\r\n]\+//g")
+
     if [ "$actual" = "$expected" ]; then
       echo -e $ok "\"$input\"" "$col_yellow=>$col_reset" "\"$actual\"" >"$result_file"
       exit 0
@@ -149,6 +152,12 @@ assert "main() { print(1 || 1); }" "1"
 assert "main() { print(1 || 0); }" "1"
 assert "main() { print(0 || 1); }" "1"
 assert "main() { print(0 || 0); }" "0"
+
+describe "インクリメント / デクリメント"
+assert "main() { a = 3; print(a++); print(a); }" "3 4"
+assert "main() { a = 3; print(a--); print(a); }" "3 2"
+assert "main() { a = 3; print(++a); print(a); }" "4 4"
+assert "main() { a = 3; print(--a); print(a); }" "2 2"
 
 describe "ローカル変数"
 assert "main() { a = 3; print(a); }" "3"

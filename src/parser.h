@@ -17,6 +17,8 @@ typedef enum {
   ND_GE,      // >=
   ND_AND,     // &&
   ND_OR,      // ||
+  ND_INCR,    // ++ (後ろに付く場合)
+  ND_DECR,    // -- (後ろに付く場合)
   ND_ASSIGN,  // = (代入)
   ND_LVAR,    // ローカル変数
   ND_RETURN,  // return

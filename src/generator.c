@@ -196,6 +196,26 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
     vec_push_last(stack, r_result);
 
     return code;
+  } else if (node->kind == ND_INCR || node->kind == ND_DECR) {
+    char op[4];
+    if (node->kind == ND_INCR) {
+      sprintf(op, "add");
+    } else if (node->kind == ND_DECR) {
+      sprintf(op, "sub");
+    }
+    int r_lvar = gen_lval(node->lhs, locals_r);
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    int r_val = r_register(rctx);
+    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_val,
+              *(int*)vec_pop(stack));
+    int* r_return = r_register_ptr(rctx);
+    push_code(code, "  %%%d = alloca i32, align 4\n", *r_return);
+    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_val, *r_return);
+    int r_result = r_register(rctx);
+    push_code(code, "  %%%d = %s nsw i32 %%%d, 1\n", r_result, op, r_val);
+    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_result, r_lvar);
+    vec_push_last(stack, r_return);
+    return code;
   }
 
   // 演算子の場合は左右のノードを先に計算する

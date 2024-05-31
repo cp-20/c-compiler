@@ -242,7 +242,19 @@ Node *unary(Token **token) {
     return new_node(ND_SUB, new_node_num(0), primary(token));
   if (consume(token, "!"))
     return new_node(ND_EQ, primary(token), new_node_num(0));
-  return primary(token);
+  if (consume(token, "++")) {
+    Node *node = primary(token);
+    return new_node(ND_ASSIGN, node, new_node(ND_ADD, node, new_node_num(1)));
+  }
+  if (consume(token, "--")) {
+    Node *node = primary(token);
+    return new_node(ND_ASSIGN, node, new_node(ND_SUB, node, new_node_num(1)));
+  }
+
+  Node *node = primary(token);
+  if (consume(token, "++")) return new_node(ND_INCR, node, NULL);
+  if (consume(token, "--")) return new_node(ND_DECR, node, NULL);
+  return node;
 }
 
 Node *primary(Token **token) {
@@ -365,6 +377,18 @@ void print_node(Node *node) {
     return;
   }
 
+  if (node->kind == ND_INCR) {
+    print_node(node->lhs);
+    printf("++");
+    return;
+  }
+
+  if (node->kind == ND_DECR) {
+    print_node(node->lhs);
+    printf("--");
+    return;
+  }
+
   printf("(");
   print_node(node->lhs);
   if (node->kind == ND_ADD) {
@@ -389,6 +413,10 @@ void print_node(Node *node) {
     printf(">=");
   } else if (node->kind == ND_ASSIGN) {
     printf("=");
+  } else if (node->kind == ND_AND) {
+    printf("&&");
+  } else if (node->kind == ND_OR) {
+    printf("||");
   }
   print_node(node->rhs);
   printf(")");

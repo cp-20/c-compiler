@@ -56,6 +56,8 @@ bool is_special2(char *p) {
   if (strncmp(p, ">=", 2) == 0) return true;
   if (strncmp(p, "&&", 2) == 0) return true;
   if (strncmp(p, "||", 2) == 0) return true;
+  if (strncmp(p, "++", 2) == 0) return true;
+  if (strncmp(p, "--", 2) == 0) return true;
   return false;
 }
 

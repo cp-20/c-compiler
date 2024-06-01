@@ -44,6 +44,10 @@ static vector *global_locals;
 Function *function(Token **token) {
   Function *func = calloc(1, sizeof(Function));
 
+  if (!consume_reserved(token, TK_INT)) {
+    error_at((*token)->str, "intではありません");
+  }
+
   Token *tok = consume_ident(token);
   func->name = tok->str;
   func->len = tok->len;
@@ -52,6 +56,10 @@ Function *function(Token **token) {
   vector *locals = new_vector();
   int argc = 0;
   while (!consume(token, ")")) {
+    if (!consume_reserved(token, TK_INT)) {
+      error_at((*token)->str, "intではありません");
+    }
+
     Token *tok = consume_ident(token);
     if (tok == NULL) {
       error_at((*token)->str, "識別子ではありません");
@@ -64,6 +72,9 @@ Function *function(Token **token) {
     lvar->name = tok->str;
     lvar->len = tok->len;
     lvar->offset = locals->size;
+    lvar->var = calloc(1, sizeof(Variable));
+    lvar->var->type = TYPE_I32;
+    lvar->var->ref_nest = 0;
     vec_push_last(locals, lvar);
     argc++;
     consume(token, ",");
@@ -152,6 +163,30 @@ Node *stmt(Token **token) {
     node->extra2 = stmt(token);
 
     return node;
+  }
+
+  if (consume_reserved(token, TK_INT)) {
+    int ref_nest = 0;
+    while (consume(token, "*")) ref_nest++;
+
+    Token *tok = consume_ident(token);
+    if (tok == NULL) {
+      error_at((*token)->str, "識別子ではありません");
+    }
+    LVar *lvar = find_lvar(tok, global_locals);
+    if (lvar != NULL) {
+      error_at(tok->str, "変数が二重定義されています");
+    }
+    lvar = calloc(1, sizeof(LVar));
+    lvar->name = tok->str;
+    lvar->len = tok->len;
+    lvar->offset = global_locals->size;
+    lvar->var = calloc(1, sizeof(Variable));
+    lvar->var->type = TYPE_I32;
+    lvar->var->ref_nest = ref_nest;
+    vec_push_last(global_locals, lvar);
+    expect(token, ";");
+    return NULL;
   }
 
   node = expr(token);
@@ -250,6 +285,8 @@ Node *unary(Token **token) {
     Node *node = primary(token);
     return new_node(ND_ASSIGN, node, new_node(ND_SUB, node, new_node_num(1)));
   }
+  if (consume(token, "&")) return new_node(ND_REF, primary(token), NULL);
+  if (consume(token, "*")) return new_node(ND_DEREF, primary(token), NULL);
 
   Node *node = primary(token);
   if (consume(token, "++")) return new_node(ND_INCR, node, NULL);
@@ -290,6 +327,9 @@ Node *primary(Token **token) {
       lvar->name = tok->str;
       lvar->len = tok->len;
       lvar->offset = global_locals->size;
+      lvar->var = calloc(1, sizeof(Variable));
+      lvar->var->type = TYPE_I32;
+      lvar->var->ref_nest = 0;
       vec_push_last(global_locals, lvar);
     }
     node->offset = lvar->offset;
@@ -386,6 +426,18 @@ void print_node(Node *node) {
   if (node->kind == ND_DECR) {
     print_node(node->lhs);
     printf("--");
+    return;
+  }
+
+  if (node->kind == ND_REF) {
+    printf("&");
+    print_node(node->lhs);
+    return;
+  }
+
+  if (node->kind == ND_DEREF) {
+    printf("*");
+    print_node(node->lhs);
     return;
   }
 

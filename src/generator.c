@@ -6,63 +6,76 @@
 #include "error.h"
 #include "llvm.h"
 #include "parser.h"
+#include "variable.h"
 #include "vector.h"
 
 // 左辺値のポインタ (レジスタ) を返す
-int gen_lval(Node* node, int* locals_r) {
+Variable gen_lval(Node* node, Variable* locals_r) {
   if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
 
   return locals_r[node->offset];
 }
 
-Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
+Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
   Code* code = init_code();
 
   if (node->kind == ND_NUM) {
     // 数字の場合はそのままスタックに積む
-    int* r_num = r_register_ptr(rctx);
-    push_code(code, "  %%%d = alloca i32, align 4\n", *r_num);
-    push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val, *r_num);
-    vec_push_last(stack, r_num);
+    int r_num = r_register(rctx);
+    push_code(code, "  %%%d = alloca i32, align 4\n", r_num);
+    push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val, r_num);
+    push_variable(stack, r_num, TYPE_I32, 0);
     return code;
   } else if (node->kind == ND_RETURN) {
     // returnの場合は値を計算して返す
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-    int r_result = *(int*)vec_at(stack, stack->size - 1);
+    Variable* val = get_last_variable(stack);
+    char* val_type = get_variable_type_str(val, 0);
+    int val_size = get_variable_size(val, 0);
     int r_result_val = r_register(rctx);
-    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_result_val,
-              r_result);
-    push_code(code, "  ret i32 %%%d\n", r_result_val);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_result_val,
+              val_type, val_type, val->reg, val_size);
+    push_code(code, "  ret %s %%%d\n", val_type, r_result_val);
     // なぜかよくわからないけどレジスタを1個空けると上手く行く
     r_register(rctx);
     return code;
   } else if (node->kind == ND_LVAR) {
     // ローカル変数の場合はその値をスタックに積む
-    vec_push_last(stack, &locals_r[node->offset]);
+    Variable var = locals_r[node->offset];
+    push_variable(stack, var.reg, var.type, var.ref_nest);
     return code;
   } else if (node->kind == ND_ASSIGN) {
     // 代入の場合は右辺を計算して左辺に代入する
-    int lptr = gen_lval(node->lhs, locals_r);
+    Variable lvar = gen_lval(node->lhs, locals_r);
     merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
 
-    int r_right = *(int*)vec_at(stack, stack->size - 1);
+    Variable* rhs = get_last_variable(stack);
+    if (lvar.type != rhs->type || lvar.ref_nest != rhs->ref_nest) {
+      error("代入の左辺値と右辺値の型が一致しません\n左辺: %s, 右辺: %s",
+            get_variable_type_str(&lvar, 0), get_variable_type_str(rhs, 0));
+    }
+    char* type = get_variable_type_str(rhs, 0);
+    int size = get_variable_size(rhs, 0);
     int r_right_val = r_register(rctx);
-    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_right_val,
-              r_right);
-    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_right_val,
-              lptr);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_right_val, type,
+              type, rhs->reg, size);
+    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", type, r_right_val,
+              type, lvar.reg, size);
     return code;
   } else if (node->kind == ND_IF) {
     // ifの場合は条件式を計算して条件によって分岐する
     // 条件式を計算する
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
 
-    int r_cond = *(int*)vec_at(stack, stack->size - 1);
+    Variable* cond = pop_variable(stack);
+    char* cond_type = get_variable_type_str(cond, 0);
+    int cond_size = get_variable_size(cond, 0);
     int r_cond_val = r_register(rctx);
-    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_cond_val,
-              r_cond);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_cond_val,
+              cond_type, cond_type, cond->reg, cond_size);
     int r_cond_bool = r_register(rctx);
-    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_cond_bool, r_cond_val);
+    push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
+              r_cond_val);
 
     int r_then_label = r_register(rctx);
 
@@ -99,13 +112,16 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
 
     // 条件式を計算する
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-    int r_cond = *(int*)vec_at(stack, stack->size - 1);
+    Variable* cond = pop_variable(stack);
+    char* cond_type = get_variable_type_str(cond, 0);
+    int cond_size = get_variable_size(cond, 0);
     int r_cond_val = r_register(rctx);
-    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_cond_val,
-              r_cond);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_cond_val,
+              cond_type, cond_type, cond->reg, cond_size);
 
     int r_cond_bool = r_register(rctx);
-    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_cond_bool, r_cond_val);
+    push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
+              r_cond_val);
 
     Code* block = init_code();
 
@@ -131,13 +147,16 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
 
     // 条件式を計算する
     merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
-    int r_cond = *(int*)vec_at(stack, stack->size - 1);
+    Variable* cond = pop_variable(stack);
+    char* cond_type = get_variable_type_str(cond, 0);
+    int cond_size = get_variable_size(cond, 0);
     int r_cond_val = r_register(rctx);
-    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_cond_val,
-              r_cond);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_cond_val,
+              cond_type, cond_type, cond->reg, cond_size);
 
     int r_cond_bool = r_register(rctx);
-    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_cond_bool, r_cond_val);
+    push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
+              r_cond_val);
 
     Code* block = init_code();
 
@@ -168,32 +187,38 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
       Node* arg = vec_at(node->call->args, i);
       merge_code(code, generate_node(arg, stack, locals_r, rctx));
     }
-    int r_args[node->call->args->size];
+    Variable args[node->call->args->size];
     for (int i = 0; i < node->call->args->size; i++) {
       int j = node->call->args->size - i - 1;
-      int r_arg = *(int*)vec_pop(stack);
+      Variable* arg = pop_variable(stack);
+      char* arg_type = get_variable_type_str(arg, 0);
+      int arg_size = get_variable_size(arg, 0);
       int r_arg_val = r_register(rctx);
-      push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_arg_val,
-                r_arg);
-      r_args[j] = r_arg_val;
+      push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_arg_val,
+                arg_type, arg_type, arg->reg, arg_size);
+      args[j].reg = r_arg_val;
+      args[j].type = arg->type;
+      args[j].ref_nest = arg->ref_nest;
     }
 
     // 関数呼び出し本体
     int r_result_val = r_register(rctx);
+    // とりあえず関数の戻り値はi32固定
     push_code(code, "  %%%d = call i32 @%.*s(", r_result_val, node->call->len,
               node->call->name);
     for (int i = 0; i < node->call->args->size; i++) {
       if (i > 0) push_code(code, ", ");
-      push_code(code, "i32 noundef %%%d", r_args[i]);
+      push_code(code, "%s noundef %%%d", get_variable_type_str(&args[i], 0),
+                args[i].reg);
     }
     push_code(code, ")\n");
 
     // 結果をスタックに積む
-    int* r_result = r_register_ptr(rctx);
-    push_code(code, "  %%%d = alloca i32, align 4\n", *r_result);
+    int r_result = r_register(rctx);
+    push_code(code, "  %%%d = alloca i32, align 4\n", r_result);
     push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_result_val,
-              *r_result);
-    vec_push_last(stack, r_result);
+              r_result);
+    push_variable(stack, r_result, TYPE_I32, 0);
 
     return code;
   } else if (node->kind == ND_INCR || node->kind == ND_DECR) {
@@ -203,18 +228,57 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
     } else if (node->kind == ND_DECR) {
       sprintf(op, "sub");
     }
-    int r_lvar = gen_lval(node->lhs, locals_r);
+    Variable lvar = gen_lval(node->lhs, locals_r);
+    char* lvar_type = get_variable_type_str(&lvar, 0);
+    int lvar_size = get_variable_size(&lvar, 0);
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    Variable* lvar_val = pop_variable(stack);
     int r_val = r_register(rctx);
-    push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_val,
-              *(int*)vec_pop(stack));
-    int* r_return = r_register_ptr(rctx);
-    push_code(code, "  %%%d = alloca i32, align 4\n", *r_return);
-    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_val, *r_return);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_val, lvar_type,
+              lvar_type, lvar_val->reg, lvar_size);
+    int r_return = r_register(rctx);
+    push_code(code, "  %%%d = alloca %s, align 4\n", r_return, lvar_type);
+    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", lvar_type, r_val,
+              lvar_type, r_return, lvar_size);
     int r_result = r_register(rctx);
-    push_code(code, "  %%%d = %s nsw i32 %%%d, 1\n", r_result, op, r_val);
-    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_result, r_lvar);
-    vec_push_last(stack, r_return);
+    push_code(code, "  %%%d = %s nsw %s %%%d, 1\n", r_result, op, lvar_type,
+              r_val);
+    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", lvar_type,
+              r_result, lvar_type, lvar.reg, lvar_size);
+    push_variable(stack, r_return, lvar.type, lvar.ref_nest);
+    return code;
+  } else if (node->kind == ND_REF) {
+    // 参照の場合は左辺値のポインタをスタックに積む
+    Variable lvar = gen_lval(node->lhs, locals_r);
+    char* lvar_type = get_variable_type_str(&lvar, 0);
+    int r_result = r_register(rctx);
+    push_code(code, "  %%%d = alloca %s*, align 8\n", r_result, lvar_type);
+    push_code(code, "  store %s* %%%d, %s** %%%d, align 8\n", lvar_type,
+              lvar.reg, lvar_type, r_result);
+    push_variable(stack, r_result, lvar.type, lvar.ref_nest + 1);
+    return code;
+  } else if (node->kind == ND_DEREF) {
+    // 間接参照の場合はポインタの値をスタックに積む
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    Variable* rhs = pop_variable(stack);
+    if (rhs->ref_nest == 0) {
+      error("間接参照演算子の右辺値がポインタではありません");
+    }
+    char* rhs_type = get_variable_type_str(rhs, 0);
+    int r_ptr_val = r_register(rctx);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align 8\n", r_ptr_val,
+              rhs_type, rhs_type, rhs->reg);
+    char* result_type = get_variable_type_str(rhs, -1);
+    int result_size = get_variable_size(rhs, -1);
+    int r_val = r_register(rctx);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_val,
+              result_type, result_type, r_ptr_val, result_size);
+    int r_result = r_register(rctx);
+    push_code(code, "  %%%d = alloca %s, align %d\n", r_result, result_type,
+              result_size);
+    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", result_type, r_val,
+              result_type, r_result, result_size);
+    push_variable(stack, r_result, rhs->type, rhs->ref_nest - 1);
     return code;
   }
 
@@ -223,14 +287,20 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
   merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
 
   // スタックから2つ取り出す
-  int r_right = *(int*)vec_pop(stack);
-  int r_left = *(int*)vec_pop(stack);
+  Variable* rval = pop_variable(stack);
+  Variable* lval = pop_variable(stack);
+  if (rval->type != lval->type || rval->ref_nest != lval->ref_nest) {
+    error("演算子の左辺値と右辺値の型が一致しません");
+  }
+
+  char* val_type = get_variable_type_str(rval, 0);
+  int val_size = get_variable_size(rval, 0);
   int r_left_val = r_register(rctx);
   int r_right_val = r_register(rctx);
-  push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_left_val,
-            r_left);
-  push_code(code, "  %%%d = load i32, i32* %%%d, align 4\n", r_right_val,
-            r_right);
+  push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_left_val,
+            val_type, val_type, lval->reg, val_size);
+  push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_right_val,
+            val_type, val_type, rval->reg, val_size);
 
   // 計算する
   int r_result_val = r_register(rctx);
@@ -243,11 +313,11 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
     } else if (node->kind == ND_MUL) {
       sprintf(op, "mul");
     }
-    push_code(code, "  %%%d = %s nsw i32 %%%d, %%%d\n", r_result_val, op,
-              r_left_val, r_right_val);
+    push_code(code, "  %%%d = %s nsw %s %%%d, %%%d\n", r_result_val, op,
+              val_type, r_left_val, r_right_val);
   } else if (node->kind == ND_DIV) {
-    push_code(code, "  %%%d = sdiv i32 %%%d, %%%d\n", r_result_val, r_left_val,
-              r_right_val);
+    push_code(code, "  %%%d = sdiv %s %%%d, %%%d\n", r_result_val, val_type,
+              r_left_val, r_right_val);
   } else if (node->kind == ND_EQ || node->kind == ND_NE ||
              node->kind == ND_LT || node->kind == ND_LE ||
              node->kind == ND_GT || node->kind == ND_GE) {
@@ -267,9 +337,10 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
     }
     int r_middle = r_register(rctx) - 1;
     r_result_val++;
-    push_code(code, "  %%%d = icmp %s i32 %%%d, %%%d\n", r_middle, op,
+    push_code(code, "  %%%d = icmp %s %s %%%d, %%%d\n", r_middle, op, val_type,
               r_left_val, r_right_val);
-    push_code(code, "  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val, r_middle,
+              val_type);
   } else if (node->kind == ND_AND || node->kind == ND_OR) {
     char op[4];
     if (node->kind == ND_AND) {
@@ -281,19 +352,23 @@ Code* generate_node(Node* node, vector* stack, int* locals_r, rctx rctx) {
     int r_middle_r = r_register(rctx) - 1;
     int r_middle = r_register(rctx) - 1;
     r_result_val += 3;
-    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_middle_l, r_left_val);
-    push_code(code, "  %%%d = icmp ne i32 %%%d, 0\n", r_middle_r, r_right_val);
+    push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_middle_l, val_type,
+              r_left_val);
+    push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_middle_r, val_type,
+              r_right_val);
     push_code(code, "  %%%d = %s i1 %%%d, %%%d\n", r_middle, op, r_middle_l,
               r_middle_r);
-    push_code(code, "  %%%d = zext i1 %%%d to i32\n", r_result_val, r_middle);
+    push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val, r_middle,
+              val_type);
   }
 
   // 結果を再びスタックに積む
-  int* r_result = r_register_ptr(rctx);
-  push_code(code, "  %%%d = alloca i32, align 4\n", *r_result);
-  push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_result_val,
-            *r_result);
-  vec_push_last(stack, r_result);
+  int r_result = r_register(rctx);
+  push_code(code, "  %%%d = alloca %s, align %d\n", r_result, val_type,
+            val_size);
+  push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", val_type,
+            r_result_val, val_type, r_result, val_size);
+  push_variable(stack, r_result, rval->type, rval->ref_nest);
 
   return code;
 }
@@ -316,26 +391,36 @@ void generate_func(Function* func) {
   r_register(rctx);
 
   // ローカル変数の初期化
-  int locals_r[func->locals->size];
+  Variable locals_r[func->locals->size];
   for (int i = 0; i < func->argc; i++) {
     LVar* var = vec_at(func->locals, i);
+    char* var_type = get_variable_type_str(var->var, 0);
+    int var_size = get_variable_size(var->var, 0);
     int r = r_register(rctx);
     printf("  ; %.*s (arg)\n", var->len, var->name);
-    printf("  %%%d = alloca i32, align 4\n", r);
-    printf("  store i32 %%%d, i32* %%%d, align 4\n", args[i], r);
-    locals_r[i] = r;
+    printf("  %%%d = alloca %s, align %d\n", r, var_type, var_size);
+    printf("  store %s %%%d, %s* %%%d, align %d\n", var_type, args[i], var_type,
+           r, var_size);
+    locals_r[i].reg = r;
+    locals_r[i].type = var->var->type;
+    locals_r[i].ref_nest = var->var->ref_nest;
   }
   for (int i = func->argc; i < func->locals->size; i++) {
     LVar* var = vec_at(func->locals, i);
+    char* var_type = get_variable_type_str(var->var, 0);
+    int var_size = get_variable_size(var->var, 0);
     int r = r_register(rctx);
     printf("  ; %.*s (local)\n", var->len, var->name);
-    printf("  %%%d = alloca i32, align 4\n", r);
-    locals_r[i] = r;
+    printf("  %%%d = alloca %s, align %d\n", r, var_type, var_size);
+    locals_r[i].reg = r;
+    locals_r[i].type = var->var->type;
+    locals_r[i].ref_nest = var->var->ref_nest;
   }
 
   // 関数本体の生成
   for (int i = 0; i < func->body->size; i++) {
     Node* node = vec_at(func->body, i);
+    if (node == NULL) continue;
     printf("  ; ");
     print_node(node);
     printf("\n");

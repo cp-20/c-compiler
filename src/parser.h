@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tokenizer.h"
+#include "variable.h"
 #include "vector.h"
 
 // 抽象構文木のノードの種類
@@ -19,6 +20,8 @@ typedef enum {
   ND_OR,      // ||
   ND_INCR,    // ++ (後ろに付く場合)
   ND_DECR,    // -- (後ろに付く場合)
+  ND_REF,     // & (アドレス演算子)
+  ND_DEREF,   // * (間接参照演算子)
   ND_ASSIGN,  // = (代入)
   ND_LVAR,    // ローカル変数
   ND_RETURN,  // return
@@ -65,9 +68,10 @@ struct Node {
 // ローカル変数の型
 typedef struct LVar LVar;
 struct LVar {
-  char *name;  // 変数の名前
-  int len;     // 名前の長さ
-  int offset;  // 何番目に宣言された変数か (0-indexed)
+  char *name;     // 変数の名前
+  int len;        // 名前の長さ
+  int offset;     // 何番目に宣言された変数か (0-indexed)
+  Variable *var;  // 変数の情報
 };
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。

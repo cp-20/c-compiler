@@ -1,11 +1,12 @@
 program    = function*
-function   = ident "(" ident ("," ident)* ")" "{" stmt* "}"
+function   = "int" ident "(" "int" ident ("," "int" ident)* ")" "{" stmt* "}"
 stmt       = expr ";"
            | "{" stmt* "}"
            | "if" "(" expr ")" stmt ("else" stmt)?
            | "while" "(" expr ")" stmt
            | "for" "(" expr? ";" expr? ";" expr? ")" stmt
            | "return" expr ";"
+           | "int" "*"* ident ";"
 expr       = logical
 logical    = assign ("&&" assign | "||" assign)*
 assign     = equality ("=" assign)?
@@ -19,6 +20,8 @@ unary      = ("+" | "-")? primary
            | "--" primary
            | primary "++"
            | primary "--"
+           | "&" primary
+           | "*" primary
 primary    = num
            | ident ("(" ident ("," ident)* ")")?
            | "(" expr ")"

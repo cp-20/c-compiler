@@ -46,6 +46,7 @@ bool is_special(char c) {
   if (c == '}') return true;
   if (c == ',') return true;
   if (c == '!') return true;
+  if (c == '&') return true;
   return false;
 }
 
@@ -120,6 +121,13 @@ Token *tokenize(char *p) {
     // for文
     if (strncmp(p, "for", 3) == 0 && !is_alnum(p[3])) {
       cur = new_token(TK_FOR, cur, p);
+      p += 3;
+      continue;
+    }
+
+    // int型
+    if (strncmp(p, "int", 3) == 0 && !is_alnum(p[3])) {
+      cur = new_token(TK_INT, cur, p);
       p += 3;
       continue;
     }

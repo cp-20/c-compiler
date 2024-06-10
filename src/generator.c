@@ -10,10 +10,32 @@
 #include "vector.h"
 
 // 左辺値のポインタ (レジスタ) を返す
-Variable gen_lval(Node* node, Variable* locals_r) {
-  if (node->kind != ND_LVAR) error("代入の左辺値が変数ではありません");
+Variable gen_lval(Code* code, Node* node, vector* stack, Variable* locals_r,
+                  rctx rctx) {
+  if (node->kind != ND_LVAR && node->kind != ND_DEREF)
+    error("代入の左辺値が変数ではありません");
 
-  return locals_r[node->offset];
+  if (node->kind == ND_LVAR) {
+    return locals_r[node->offset];
+  }
+
+  if (node->kind == ND_DEREF) {
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    Variable* rhs = pop_variable(stack);
+    if (rhs->ref_nest == 0) {
+      error("間接参照演算子の右辺値がポインタではありません");
+    }
+    char* rhs_type = get_variable_type_str(rhs, 0);
+    int r_ptr_val = r_register(rctx);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align 8\n", r_ptr_val,
+              rhs_type, rhs_type, rhs->reg);
+
+    Variable lvar = {r_ptr_val, rhs->type, rhs->ref_nest - 1};
+    return lvar;
+  }
+
+  error("代入の左辺値が変数ではありません");
+  return locals_r[0];
 }
 
 Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
@@ -46,7 +68,7 @@ Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
     return code;
   } else if (node->kind == ND_ASSIGN) {
     // 代入の場合は右辺を計算して左辺に代入する
-    Variable lvar = gen_lval(node->lhs, locals_r);
+    Variable lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
     merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
 
     Variable* rhs = get_last_variable(stack);
@@ -228,7 +250,7 @@ Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
     } else if (node->kind == ND_DECR) {
       sprintf(op, "sub");
     }
-    Variable lvar = gen_lval(node->lhs, locals_r);
+    Variable lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
     char* lvar_type = get_variable_type_str(&lvar, 0);
     int lvar_size = get_variable_size(&lvar, 0);
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
@@ -249,7 +271,7 @@ Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
     return code;
   } else if (node->kind == ND_REF) {
     // 参照の場合は左辺値のポインタをスタックに積む
-    Variable lvar = gen_lval(node->lhs, locals_r);
+    Variable lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
     char* lvar_type = get_variable_type_str(&lvar, 0);
     int r_result = r_register(rctx);
     push_code(code, "  %%%d = alloca %s*, align 8\n", r_result, lvar_type);

@@ -211,9 +211,9 @@ assert "int main() { print(fib(10)); } int fib(int n) { if (n <= 1) return n; re
 
 describe "ポインタ"
 assert "int main() { int* b; a = 3; b = &a; print(*b); }" "3"
-# assert "int main() { int* b; a = 3; b = &a; *b = 5; print(a); }" "5"
-# assert "int main() { int* b; a = 3; b = &a; c = &b; print(**c); }" "3"
-# assert "int main() { int* b; int** c; a = 3; b = &a; c = &b; **c = 5; print(a); }" "5"
+assert "int main() { int* b; a = 3; b = &a; *b = 5; print(a); }" "5"
+assert "int main() { int* b; int** c; a = 3; b = &a; c = &b; print(**c); }" "3"
+assert "int main() { int* b; int** c; a = 3; b = &a; c = &b; **c = 5; print(a); }" "5"
 
 # 全てのテストが完了するのを待つ
 for pid in "${pids[@]}"; do

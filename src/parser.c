@@ -285,8 +285,33 @@ Node *unary(Token **token) {
     Node *node = primary(token);
     return new_node(ND_ASSIGN, node, new_node(ND_SUB, node, new_node_num(1)));
   }
-  if (consume(token, "&")) return new_node(ND_REF, primary(token), NULL);
-  if (consume(token, "*")) return new_node(ND_DEREF, primary(token), NULL);
+  bool is_ref = consume(token, "&");
+  bool is_deref = consume(token, "*");
+  if (is_ref || is_deref) {
+    int ref_nest = 1;
+    if (is_deref) {
+      ref_nest = -1;
+    }
+    while (1) {
+      if (consume(token, "&")) {
+        ref_nest++;
+      } else if (consume(token, "*")) {
+        ref_nest--;
+      } else {
+        break;
+      }
+    }
+    Node *node = primary(token);
+    while (ref_nest > 0) {
+      node = new_node(ND_REF, node, NULL);
+      ref_nest--;
+    }
+    while (ref_nest < 0) {
+      node = new_node(ND_DEREF, node, NULL);
+      ref_nest++;
+    }
+    return node;
+  }
 
   Node *node = primary(token);
   if (consume(token, "++")) return new_node(ND_INCR, node, NULL);

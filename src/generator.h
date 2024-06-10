@@ -7,7 +7,8 @@
 #include "parser.h"
 #include "vector.h"
 
-Variable gen_lval(Node* node, Variable* locals_r);
+Variable gen_lval(Code* code, Node* node, vector* stack, Variable* locals_r,
+                  rctx rctx);
 
 Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx);
 

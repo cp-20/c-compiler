@@ -470,36 +470,8 @@ void generate_header() {
 }
 
 void generate_print() {
-  printf(
-      "@.str = private unnamed_addr constant [4 x i8] c\"%%d\\0A\\00\", "
-      "align 1\n");
-  printf(
-      "declare i32 @printf(ptr noundef, ...) #1\n"
-      "\n"
-      "define dso_local i32 @print(i32 noundef %%0) #0 {\n"
-      "  %%2 = alloca i32, align 4\n"
-      "  store i32 %%0, i32* %%2, align 4\n"
-      "  %%3 = load i32, i32* %%2, align 4\n"
-
-      "  %%4 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef "
-      "%%3)\n"
-      "  ret i32 0\n"
-      "}\n");
-
-  printf(
-      "@.str.1 = private unnamed_addr constant [3 x i8] c\"%%d\\00\", align "
-      "1\n");
-  printf(
-
-      "define dso_local i32 @scan() #0 {\n"
-      "  %%1 = alloca i32, align 4\n"
-      "  %%2 = call i32 (ptr, ...) @__isoc99_scanf(ptr noundef @.str.1, ptr "
-      "noundef %%1)\n"
-      "  %%3 = load i32, ptr %%1, align 4\n"
-      "  ret i32 %%3\n"
-      "}\n"
-      "\n"
-      "declare i32 @__isoc99_scanf(ptr noundef, ...) #1 ");
+  printf("declare i32 @print(i32 noundef, ...) #1\n");
+  printf("declare i32 @scan() #0");
 }
 
 void generate(vector* code) {

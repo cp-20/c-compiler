@@ -9,7 +9,8 @@ tasks:
     desc: Generate LLVM IR from C source file
   compile-llvm:
     cmds:
-      - clang {{ .CLI_ARGS }}.ll -o {{ .CLI_ARGS }}
+      - clang {{ .CLI_ARGS }}.ll -c -o {{ .CLI_ARGS }}.o
+      - clang {{ .CLI_ARGS }}.o $(find . -wholename './dist/lib/*.o') -o {{ .CLI_ARGS }}
       - ./{{ .CLI_ARGS }}
     desc: Compile LLVM IR to executable
   compile-c:

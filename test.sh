@@ -31,7 +31,8 @@ assert() {
 
   {
     tmp_ll_file="$(mktemp).ll"
-    clang_output=$(mktemp)
+    clang_output_object="$(mktemp).o"
+    clang_output="$(mktemp)"
     compiler_stderr=$(./dist/1cc "$input" >"$tmp_ll_file" 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
@@ -41,13 +42,24 @@ assert() {
       echo -e "" >>"$result_file"
       exit 1
     fi
-    clang_stderr=$(clang -v "$tmp_ll_file" -o $clang_output 2>&1)
+    clang_compile_stderr=$(clang -v "$tmp_ll_file" -c -o $clang_output_object 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
       echo -e "  ❌ Translate (clang)" >>"$result_file"
       echo -e "" >>"$result_file"
-      echo -e "$clang_stderr" | awk '{print "  " $0}' >>"$result_file"
+      echo -e "$clang_compile_stderr" | awk '{print "  " $0}' >>"$result_file"
+      echo -e "" >>"$result_file"
+      exit 1
+    fi
+    clang_link_stderr=$(clang -v "$clang_output_object" $(find . -wholename "./dist/lib/*.o") -o "$clang_output" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo -e "$ng \"$input\"" >"$result_file"
+      echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
+      echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
+      echo -e "  ❌ Link" >>"$result_file"
+      echo -e "" >>"$result_file"
+      echo -e "$clang_link_stderr" | awk '{print "  " $0}' >>"$result_file"
       echo -e "" >>"$result_file"
       exit 1
     fi

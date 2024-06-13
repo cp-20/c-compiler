@@ -311,18 +311,69 @@ Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
   // スタックから2つ取り出す
   Variable* rval = pop_variable(stack);
   Variable* lval = pop_variable(stack);
-  if (rval->type != lval->type || rval->ref_nest != lval->ref_nest) {
-    error("演算子の左辺値と右辺値の型が一致しません");
-  }
+  Variable* result_val = get_calc_result_type(node->kind, lval, rval);
 
-  char* val_type = get_variable_type_str(rval, 0);
-  int val_size = get_variable_size(rval, 0);
+  char* lval_type = get_variable_type_str(lval, 0);
+  int lval_size = get_variable_size(lval, 0);
+  char* rval_type = get_variable_type_str(rval, 0);
+  int rval_size = get_variable_size(rval, 0);
+  char* val_type = get_variable_type_str(result_val, 0);
+  int val_size = get_variable_size(result_val, 0);
   int r_left_val = r_register(rctx);
   int r_right_val = r_register(rctx);
   push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_left_val,
-            val_type, val_type, lval->reg, val_size);
+            lval_type, lval_type, lval->reg, lval_size);
   push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_right_val,
-            val_type, val_type, rval->reg, val_size);
+            rval_type, rval_type, rval->reg, rval_size);
+
+  if (result_val->ref_nest > 0) {
+    int r_result_val = r_register(rctx);
+    if (lval->ref_nest > 0 && rval->ref_nest == 0) {
+      char* ptr_type = get_variable_type_str(lval, -1);
+      int r_ptr_diff = r_right_val;
+      if (node->kind == ND_SUB) {
+        r_ptr_diff = r_register(rctx) - 1;
+        r_result_val++;
+        push_code(code, "  %%%d = sub nsw %s 0, %%%d\n", r_ptr_diff, rval_type,
+                  r_right_val);
+      }
+      push_code(code, "  %%%d = getelementptr inbounds %s, %s %%%d, %s %%%d\n",
+                r_result_val, ptr_type, lval_type, r_left_val, rval_type,
+                r_ptr_diff);
+    } else if (lval->ref_nest == 0 && rval->ref_nest > 0) {
+      char* ptr_type = get_variable_type_str(rval, -1);
+      push_code(code, "  %%%d = getelementptr inbounds %s, %s %%%d, %s %%%d\n",
+                r_result_val, ptr_type, rval_type, r_right_val, lval_type,
+                r_left_val);
+    } else {
+      int r_left_val_int = r_register(rctx) - 1;
+      r_result_val++;
+      push_code(code, "  %%%d = ptrtoint %s %%%d to i64\n", r_left_val_int,
+                lval_type, r_left_val);
+      int r_right_val_int = r_register(rctx) - 1;
+      r_result_val++;
+      push_code(code, "  %%%d = ptrtoint %s %%%d to i64\n", r_right_val_int,
+                rval_type, r_right_val);
+      int r_sub_result = r_register(rctx) - 1;
+      r_result_val++;
+      push_code(code, "  %%%d = sub i64 %%%d, %%%d\n", r_sub_result, r_left_val,
+                r_right_val);
+      int r_sdiv_result = r_register(rctx) - 1;
+      r_result_val++;
+      push_code(code, "  %%%d = sdiv exact i64 %%%d, 4\n", r_sdiv_result,
+                r_left_val);
+      push_code(code, "  %%%d = trunc i64 %%%d to i32\n", r_result_val,
+                r_sdiv_result);
+    }
+    int r_result = r_register(rctx);
+    push_code(code, "  %%%d = alloca %s, align %d\n", r_result, val_type,
+              val_size);
+    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", val_type,
+              r_result_val, val_type, r_result, val_size);
+
+    push_variable(stack, r_result, result_val->type, result_val->ref_nest);
+    return code;
+  }
 
   // 計算する
   int r_result_val = r_register(rctx);
@@ -390,7 +441,7 @@ Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
             val_size);
   push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", val_type,
             r_result_val, val_type, r_result, val_size);
-  push_variable(stack, r_result, rval->type, rval->ref_nest);
+  push_variable(stack, r_result, lval->type, lval->ref_nest);
 
   return code;
 }
@@ -471,7 +522,10 @@ void generate_header() {
 
 void generate_print() {
   printf("declare i32 @print(i32 noundef, ...) #1\n");
-  printf("declare i32 @scan() #0");
+  printf("declare i32 @scan() #0\n");
+  printf(
+      "declare i32 @alloc4(i32** noundef, i32 noundef, i32 noundef, i32 "
+      "noundef, i32 noundef) #0\n");
 }
 
 void generate(vector* code) {

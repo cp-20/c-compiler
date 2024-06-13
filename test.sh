@@ -56,7 +56,7 @@ assert() {
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
-      echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
+      echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output_object" >>"$result_file"
       echo -e "  ❌ Link" >>"$result_file"
       echo -e "" >>"$result_file"
       echo -e "$clang_link_stderr" | awk '{print "  " $0}' >>"$result_file"
@@ -67,7 +67,8 @@ assert() {
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
-      echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
+      echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output_object" >>"$result_file"
+      echo -e "  ✅ Link" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
       echo -e "  ❌ Execute" >>"$result_file"
       echo -e "" >>"$result_file"
       exit 1
@@ -82,7 +83,8 @@ assert() {
     else
       echo -e $ng "\"$input\"" "$col_yellow=>$col_reset" "\"$expected\"" >>"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
-      echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
+      echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output_object" >>"$result_file"
+      echo -e "  ✅ Link" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
       echo -e "  ✅ Execute" >>"$result_file"
       echo -e "  ❌ Result" "$col_yellow=>$col_reset" "got $actual" >>"$result_file"
       echo -e "" >>"$result_file"
@@ -226,6 +228,7 @@ assert "int main() { int* b; a = 3; b = &a; print(*b); }" "3"
 assert "int main() { int* b; a = 3; b = &a; *b = 5; print(a); }" "5"
 assert "int main() { int* b; int** c; a = 3; b = &a; c = &b; print(**c); }" "3"
 assert "int main() { int* b; int** c; a = 3; b = &a; c = &b; **c = 5; print(a); }" "5"
+assert "int main() { int *p; alloc4(&p, 1, 2, 4, 8); int *q; q = p + 2; print(*q); q = q + 1; print(*q); q = q - 2; print(*q); }" "4 8 2"
 
 # 全てのテストが完了するのを待つ
 for pid in "${pids[@]}"; do

@@ -194,7 +194,7 @@ Code* generate_node(Node* node, vector* stack, Variable* locals_r, rctx rctx) {
     merge_code(code, block);
     push_code(code, "%d:\n", r_end_label);
     return code;
-  } else if (node->kind == ND_BLOCK) {
+  } else if (node->kind == ND_BLOCK || node->kind == ND_GROUP) {
     // ブロックの場合は各文を順に生成する
     for (int i = 0; i < node->stmts->size; i++) {
       Node* stmt = vec_at(node->stmts, i);

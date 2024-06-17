@@ -27,6 +27,7 @@ typedef enum {
   ND_WHILE,   // while
   ND_FOR,     // for
   ND_BLOCK,   // { ... }
+  ND_GROUP,   // 複数のノードをまとめる
   ND_CALL,    // 関数呼び出し
   ND_NUM,     // 整数
 } NodeKind;

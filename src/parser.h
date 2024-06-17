@@ -24,6 +24,7 @@ vector *program(Token **token);
 Function *function(Token **token);
 Node *stmt(Token **token);
 Node *expr(Token **token);
+Node *declaration(Token **token);
 Node *logical(Token **token);
 Node *assign(Token **token);
 Node *equality(Token **token);

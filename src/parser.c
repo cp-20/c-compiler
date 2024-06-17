@@ -165,7 +165,19 @@ Node *stmt(Token **token) {
     return node;
   }
 
-  if (consume_reserved(token, TK_INT)) {
+  node = expr(token);
+  expect(token, ";");
+  return node;
+}
+
+Node *expr(Token **token) { return declaration(token); }
+
+Node *declaration(Token **token) {
+  if (!consume_reserved(token, TK_INT)) return logical(token);
+
+  Node *node = new_node(ND_GROUP, NULL, NULL);
+  vector *stmts = new_vector();
+  do {
     int ref_nest = 0;
     while (consume(token, "*")) ref_nest++;
 
@@ -185,16 +197,17 @@ Node *stmt(Token **token) {
     lvar->var->type = TYPE_I32;
     lvar->var->ref_nest = ref_nest;
     vec_push_last(global_locals, lvar);
-    expect(token, ";");
-    return NULL;
-  }
 
-  node = expr(token);
-  expect(token, ";");
+    if (consume(token, "=")) {
+      Node *lvar_node = new_node(ND_LVAR, NULL, NULL);
+      lvar_node->offset = lvar->offset;
+      Node *init_node = new_node(ND_ASSIGN, lvar_node, expr(token));
+      vec_push_last(stmts, init_node);
+    }
+  } while (consume(token, ","));
+  node->stmts = stmts;
   return node;
 }
-
-Node *expr(Token **token) { return logical(token); }
 
 Node *logical(Token **token) {
   Node *node = assign(token);
@@ -348,14 +361,7 @@ Node *primary(Token **token) {
     node->kind = ND_LVAR;
     LVar *lvar = find_lvar(tok, global_locals);
     if (lvar == NULL) {
-      lvar = calloc(1, sizeof(LVar));
-      lvar->name = tok->str;
-      lvar->len = tok->len;
-      lvar->offset = global_locals->size;
-      lvar->var = calloc(1, sizeof(Variable));
-      lvar->var->type = TYPE_I32;
-      lvar->var->ref_nest = 0;
-      vec_push_last(global_locals, lvar);
+      error_at(tok->str, "未定義の変数です: %.*s", tok->len, tok->str);
     }
     node->offset = lvar->offset;
     return node;
@@ -429,6 +435,14 @@ void print_node(Node *node) {
       printf("; ");
     }
     printf("}");
+    return;
+  }
+
+  if (node->kind == ND_GROUP) {
+    for (int i = 0; i < node->stmts->size; i++) {
+      print_node(vec_at(node->stmts, i));
+      printf("; ");
+    }
     return;
   }
 

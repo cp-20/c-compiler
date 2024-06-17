@@ -1,27 +1,27 @@
-program    = function*
-function   = "int" ident "(" "int" ident ("," "int" ident)* ")" "{" stmt* "}"
-stmt       = expr ";"
-           | "{" stmt* "}"
-           | "if" "(" expr ")" stmt ("else" stmt)?
-           | "while" "(" expr ")" stmt
-           | "for" "(" expr? ";" expr? ";" expr? ")" stmt
-           | "return" expr ";"
-           | "int" "*"* ident ";"
-expr       = logical
-logical    = assign ("&&" assign | "||" assign)*
-assign     = equality ("=" assign)?
-equality   = relational ("==" relational | "!=" relational)*
-relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-add        = mul ("+" mul | "-" mul)*
-mul        = unary ("*" unary | "/" unary)*
-unary      = ("+" | "-")? primary
-           | "!" primary
-           | "++" primary
-           | "--" primary
-           | primary "++"
-           | primary "--"
-           | "&"* primary
-           | "*"* primary
-primary    = num
-           | ident ("(" ident ("," ident)* ")")?
-           | "(" expr ")"
+program     = function*
+function    = "int" ident "(" "int" ident ("," "int" ident)* ")" "{" stmt* "}"
+stmt        = expr ";"
+            | "{" stmt* "}"
+            | "if" "(" expr ")" stmt ("else" stmt)?
+            | "while" "(" expr ")" stmt
+            | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+            | "return" expr ";"
+expr        = logical
+declaration = "int" "*"* ident ("=" logical)? ("," ident ("=" logical)? )*
+logical     = assign ("&&" assign | "||" assign)*
+assign      = equality ("=" assign)?
+equality    = relational ("==" relational | "!=" relational)*
+relational  = add ("<" add | "<=" add | ">" add | ">=" add)*
+add         = mul ("+" mul | "-" mul)*
+mul         = unary ("*" unary | "/" unary)*
+unary       = ("+" | "-")? primary
+            | "!" primary
+            | "++" primary
+            | "--" primary
+            | primary "++"
+            | primary "--"
+            | "&"* primary
+            | "*"* primary
+primary     = num
+            | ident ("(" ident ("," ident)* ")")?
+            | "(" expr ")"

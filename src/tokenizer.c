@@ -125,6 +125,13 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // sizeof演算子
+    if (strncmp(p, "sizeof", 6) == 0 && !is_alnum(p[6])) {
+      cur = new_token(TK_SIZEOF, cur, p);
+      p += 6;
+      continue;
+    }
+
     // int型
     if (strncmp(p, "int", 3) == 0 && !is_alnum(p[3])) {
       cur = new_token(TK_INT, cur, p);

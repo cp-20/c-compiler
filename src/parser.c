@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include "color.h"
+#include "node-helper.h"
 #include "tokenizer.h"
 #include "vector.h"
 
@@ -273,6 +274,12 @@ Node *mul(Token **token) {
 }
 
 Node *unary(Token **token) {
+  if (consume_reserved(token, TK_SIZEOF)) {
+    Node *node = unary(token);
+    Variable *node_type = get_node_type(node, global_locals);
+    int node_size = get_variable_size(node_type);
+    return new_node_num(node_size);
+  }
   if (consume(token, "+")) return primary(token);
   if (consume(token, "-"))
     return new_node(ND_SUB, new_node_num(0), primary(token));

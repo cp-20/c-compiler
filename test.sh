@@ -235,9 +235,22 @@ assert "int main() { print(sizeof(1)); }" "4"
 assert "int main() { print(sizeof(1 + 2)); }" "4"
 
 # 全てのテストが完了するのを待つ
-for pid in "${pids[@]}"; do
+echo -n "Running tests: "
+for i in $(seq 0 $((${#pids[@]} - 1))); do
+  pid=${pids[$i]}
   wait "$pid"
+  result=${result_files[$i]}
+  echo -ne "\r"
+  echo -n "Running tests: ["
+  for ((j = 0; j <= i; j++)); do
+    echo -n "#"
+  done
+  for ((j = i + 1; j < ${#pids[@]}; j++)); do
+    echo -n "-"
+  done
+  echo -n "] ($((i + 1))/${#pids[@]})"
 done
+echo -e ""
 
 # 結果を表示する
 ok_count=0
@@ -247,13 +260,13 @@ for i in $(seq 0 $((${#result_files[@]} - 1))); do
   result_file="${result_files[$i]}"
   test_name="${test_names[$i]}"
   if [ "$current_test_name" != "$test_name" ]; then
-    echo -e "\n$test_name"
     current_test_name="$test_name"
   fi
   result=$(cat "$result_file")
-  echo -e "$result"
   if [[ "$result" =~ \[NG\] ]]; then
     ng_count=$((ng_count + 1))
+    echo -e "$test_name\n"
+    echo -e "$result"
   else
     ok_count=$((ok_count + 1))
   fi

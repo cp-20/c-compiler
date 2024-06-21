@@ -74,7 +74,6 @@ Function *function(Token **token) {
     lvar->offset = locals->size;
     lvar->var = calloc(1, sizeof(Variable));
     lvar->var->type = TYPE_I32;
-    lvar->var->ref_nest = 0;
     vec_push_last(locals, lvar);
     argc++;
     consume(token, ",");
@@ -193,9 +192,13 @@ Node *declaration(Token **token) {
     lvar->name = tok->str;
     lvar->len = tok->len;
     lvar->offset = global_locals->size;
-    lvar->var = calloc(1, sizeof(Variable));
-    lvar->var->type = TYPE_I32;
-    lvar->var->ref_nest = ref_nest;
+
+    Variable *var = new_variable(-1, TYPE_I32, NULL, 0);
+    for (; ref_nest > 0; ref_nest--) {
+      Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
+      var = ptr;
+    }
+    lvar->var = var;
     vec_push_last(global_locals, lvar);
 
     if (consume(token, "=")) {

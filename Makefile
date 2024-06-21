@@ -8,12 +8,12 @@ TARGET=dist/1cc
 1cc: $(TARGET)
 
 $(TARGET): $(OBJS) $(LIBOBJS)
-	clang $(CFLAGS) -o $@ $^
+	clang $(CFLAGS) -o $@ $(OBJS)
 
-dist/%.o: src/%.c dist
+dist/%.o: src/%.c | dist
 	clang $(CFLAGS) -c -o $@ $<
 
-dist/lib/%.o: src/lib/%.c dist/lib
+dist/lib/%.o: src/lib/%.c | dist/lib
 	clang $(CFLAGS) -c -o $@ $<
 
 dist:

@@ -63,3 +63,9 @@ struct Node {
   int offset;     // kindがND_LVARの場合のみ使う
   NodeKind kind;  // ノードの型
 };
+
+Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
+
+Node *new_node_num(int val);
+
+void print_node(Node *node);

@@ -245,14 +245,17 @@ for i in $(seq 0 $((${#pids[@]} - 1))); do
   result=${result_files[$i]}
   echo -ne "\r"
   echo -n "Running tests: ["
-  for ((j = 0; j <= i; j++)); do
-    echo -n "#"
-  done
-  for ((j = i + 1; j < ${#pids[@]}; j++)); do
-    echo -n "-"
+  segment=$(expr $i '*' 1000 / ${#pids[@]})
+  for ((j = 0; j < 1000; j += 20)); do
+    if [ $j -le $segment ]; then
+      echo -n "#"
+    else
+      echo -n " "
+    fi
   done
   echo -n "] ($((i + 1))/${#pids[@]})"
 done
+echo -e ""
 echo -e ""
 
 # 結果を表示する
@@ -268,7 +271,7 @@ for i in $(seq 0 $((${#result_files[@]} - 1))); do
   result=$(cat "$result_file")
   if [[ "$result" =~ \[NG\] ]]; then
     ng_count=$((ng_count + 1))
-    echo -e "$test_name\n"
+    echo -e "$col_yellow$test_name$col_reset"
     echo -e "$result"
   else
     ok_count=$((ok_count + 1))

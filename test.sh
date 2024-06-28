@@ -230,6 +230,9 @@ assert "int main() { int a = 3; int *b = &a; int **c = &b; print(**c); }" "3"
 assert "int main() { int a = 3; int *b = &a; int **c = &b; **c = 5; print(a); }" "5"
 assert "int main() { int *p; alloc4(&p, 1, 2, 4, 8); int *q = p + 2; print(*q); q = q + 1; print(*q); q = q - 2; print(*q); }" "4 8 2"
 
+describe "変数宣言"
+assert "int main() { int a = 3; int* b = &a, c = &a; print(*b); }" "3"
+
 describe "sizeof"
 assert "int main() { print(sizeof(1)); }" "4"
 assert "int main() { print(sizeof(1 + 2)); }" "4"

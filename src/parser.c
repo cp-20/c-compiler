@@ -160,12 +160,12 @@ Node *expr(Token **token) { return declaration(token); }
 Node *declaration(Token **token) {
   if (!consume_reserved(token, TK_INT)) return logical(token);
 
+  int ref_nest = 0;
+  while (consume(token, "*")) ref_nest++;
+
   Node *node = new_node(ND_GROUP, NULL, NULL);
   vector *stmts = new_vector();
   do {
-    int ref_nest = 0;
-    while (consume(token, "*")) ref_nest++;
-
     Token *tok = consume_ident(token);
     if (tok == NULL) {
       error_at((*token)->str, "識別子ではありません");
@@ -180,7 +180,7 @@ Node *declaration(Token **token) {
     lvar->offset = global_locals->size;
 
     Variable *var = new_variable(-1, TYPE_I32, NULL, 0);
-    for (; ref_nest > 0; ref_nest--) {
+    for (int nest = ref_nest; nest > 0; nest--) {
       Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
       var = ptr;
     }

@@ -50,6 +50,8 @@ bool consume_reserved(Token **token, TokenKind kind);
 
 bool consume(Token **token, char *op);
 
+int consume_number(Token **token);
+
 Token *consume_ident(Token **token);
 
 void expect(Token **token, char *op);

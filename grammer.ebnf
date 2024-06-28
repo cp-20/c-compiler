@@ -8,6 +8,8 @@ stmt        = expr ";"
             | "return" expr ";"
 expr        = logical
 declaration = "int" "*"* ident ("=" logical)? ("," ident ("=" logical)? )*
+            | "int" "*"* ident "[" num "]" ("=" "{" (logical ("," logical)*)? "}")?
+            | "int" "*"* ident "[" "]" ("=" "{" (logical ("," logical)*)? "}")?
 logical     = assign ("&&" assign | "||" assign)*
 assign      = equality ("=" assign)?
 equality    = relational ("==" relational | "!=" relational)*
@@ -25,4 +27,5 @@ unary       = "sizeof" (unary | type)
             | "*"* primary
 primary     = num
             | ident ("(" ident ("," ident)* ")")?
+            | ident ("[" logical "]")*
             | "(" expr ")"

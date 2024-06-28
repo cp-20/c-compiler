@@ -185,13 +185,50 @@ Node *declaration(Token **token) {
       var = ptr;
     }
     lvar->var = var;
-    vec_push_last(global_locals, lvar);
 
-    if (consume(token, "=")) {
-      Node *lvar_node = new_node(ND_LVAR, NULL, NULL);
-      lvar_node->offset = lvar->offset;
-      Node *init_node = new_node(ND_ASSIGN, lvar_node, expr(token));
-      vec_push_last(stmts, init_node);
+    if (consume(token, "[")) {
+      int array_size = consume_number(token);
+      lvar->var = new_variable(-1, TYPE_ARRAY, lvar->var, array_size);
+      expect(token, "]");
+      vec_push_last(global_locals, lvar);
+
+      if (consume(token, "=")) {
+        Node *lvar_node = new_node(ND_LVAR, NULL, NULL);
+        lvar_node->offset = lvar->offset;
+
+        expect(token, "{");
+        int array_element = 0;
+        while (!consume(token, "}")) {
+          Node *val = logical(token);
+          Node *lvar_index_node =
+              new_node(ND_ADD, lvar_node, new_node_num(array_element));
+          Node *lvar_deref_node = new_node(ND_DEREF, lvar_index_node, NULL);
+          Node *assign_node = new_node(ND_ASSIGN, lvar_deref_node, val);
+          vec_push_last(stmts, assign_node);
+          array_element++;
+          if (consume(token, "}")) break;
+          expect(token, ",");
+        }
+        if (array_size >= 0 && array_size != array_element) {
+          error_at(tok->str, "配列の宣言サイズと初期化サイズが一致しません");
+        }
+        if (array_size < 0) {
+          lvar->var->array_size = array_element;
+        }
+      } else {
+        if (array_size < 0) {
+          error_at(tok->str, "配列のサイズが指定されていません");
+        }
+      }
+    } else {
+      vec_push_last(global_locals, lvar);
+
+      if (consume(token, "=")) {
+        Node *lvar_node = new_node(ND_LVAR, NULL, NULL);
+        lvar_node->offset = lvar->offset;
+        Node *init_node = new_node(ND_ASSIGN, lvar_node, expr(token));
+        vec_push_last(stmts, init_node);
+      }
     }
   } while (consume(token, ","));
   node->stmts = stmts;
@@ -359,6 +396,14 @@ Node *primary(Token **token) {
       error_at(tok->str, "未定義の変数です: %.*s", tok->len, tok->str);
     }
     node->offset = lvar->offset;
+
+    if (consume(token, "[")) {
+      int index = expect_number(token);
+      node =
+          new_node(ND_DEREF, new_node(ND_ADD, node, new_node_num(index)), NULL);
+      expect(token, "]");
+    }
+
     return node;
   }
 

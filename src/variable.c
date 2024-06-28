@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "error.h"
 #include "parser.h"
 #include "vector.h"
 
@@ -50,7 +51,7 @@ char* get_variable_type_str(Variable* var) {
 
 int get_variable_size(Variable* var) {
   if (var->type == TYPE_ARRAY) {
-    return get_variable_size(var->ptr_to) * var->array_size;
+    return align(get_variable_size(var->ptr_to) * var->array_size);
   }
 
   if (var->type == TYPE_PTR) {
@@ -82,8 +83,14 @@ bool is_same_type(Variable* var1, Variable* var2) {
   return true;
 }
 
+bool is_pointer_like(Variable* var) {
+  return var->type == TYPE_PTR || var->type == TYPE_ARRAY;
+}
+
+bool is_number(Variable* var) { return var->type == TYPE_I32; }
+
 Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
-  if (lval->type != TYPE_PTR && rval->type != TYPE_PTR) {
+  if (!is_pointer_like(lval) && !is_pointer_like(rval)) {
     if (!is_same_type(lval, rval)) {
       error("演算子の左辺値と右辺値の型が一致しません\n左辺: %s, 右辺: %s",
             get_variable_type_str(lval), get_variable_type_str(rval));
@@ -112,5 +119,29 @@ Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
     error("ポインタ型の変数に対する演算子が不正です");
   }
 
+  if (lval->type == TYPE_ARRAY && is_number(rval)) {
+    if (kind == ND_ADD || kind == ND_SUB) {
+      return lval;
+    }
+    error("配列型の変数に対する演算子が不正です");
+  }
+  if (is_number(lval) && rval->type == TYPE_ARRAY) {
+    if (kind == ND_ADD || kind == ND_SUB) {
+      return rval;
+    }
+    error("配列型の変数に対する演算子が不正です");
+  }
+
   return NULL;
+}
+
+int pow2[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
+int align(int size) {
+  for (int i = 0; i < 10; i++) {
+    if (size <= pow2[i]) {
+      return pow2[i];
+    }
+  }
+  error("アラインメントのサイズが大きすぎます");
+  return 0;
 }

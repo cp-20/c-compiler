@@ -47,6 +47,8 @@ bool is_special(char c) {
   if (c == ',') return true;
   if (c == '!') return true;
   if (c == '&') return true;
+  if (c == '[') return true;
+  if (c == ']') return true;
   return false;
 }
 
@@ -177,6 +179,13 @@ bool consume(Token **token, char *op) {
     return false;
   (*token) = (*token)->next;
   return true;
+}
+
+int consume_number(Token **token) {
+  if ((*token)->kind != TK_NUM) return -1;
+  int val = (*token)->val;
+  (*token) = (*token)->next;
+  return val;
 }
 
 Token *consume_ident(Token **token) {

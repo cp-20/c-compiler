@@ -1,5 +1,21 @@
 #!/bin/bash
 
+flag_show_ok_result=false
+
+# 引数を解析
+while [[ $# -gt 0 ]]; do
+  case $1 in
+  --show-ok-result)
+    flag_show_ok_result=true
+    shift
+    ;;
+  *)
+    echo "Unknown option: $1"
+    exit 1
+    ;;
+  esac
+done
+
 # テストの結果を格納するための配列
 pids=()
 test_names=()
@@ -237,6 +253,12 @@ describe "sizeof"
 assert "int main() { print(sizeof(1)); }" "4"
 assert "int main() { print(sizeof(1 + 2)); }" "4"
 
+describe "配列 (stack pointer)"
+assert "int main() { int a[3]; a[0] = 1; a[1] = 2; a[2] = 3; print(a[0] + a[1]); print(a[1] + a[2]); }" "3 5"
+assert "int main() { int a[3]; a[0] = 1; a[1] = 2; a[2] = 3; int *p = a; print(*p); p++; print(*p); p++; print(*p); }" "1 2 3"
+assert "int main() { int a[3] = {1, 2, 3}; print(a[2]); }" "3"
+assert "int main() { int a[] = {1, 2, 3}; print(a[1]); }" "2"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do
@@ -271,10 +293,15 @@ for i in $(seq 0 $((${#result_files[@]} - 1))); do
   result=$(cat "$result_file")
   if [[ "$result" =~ \[NG\] ]]; then
     ng_count=$((ng_count + 1))
-    echo -e "$col_yellow$test_name$col_reset"
+    echo -e "$col_cyan$test_name$col_reset"
     echo -e "$result"
   else
     ok_count=$((ok_count + 1))
+    if [ $flag_show_ok_result = false ]; then
+      continue
+    fi
+    echo -e "$col_cyan$test_name$col_reset"
+    echo -e "$result"
   fi
   rm "$result_file"
 done

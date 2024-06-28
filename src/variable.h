@@ -37,4 +37,10 @@ int get_variable_size(Variable* var);
 
 bool is_same_type(Variable* var1, Variable* var2);
 
+bool is_pointer_like(Variable* var);
+
+bool is_number(Variable* var);
+
 Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval);
+
+int align(int size);

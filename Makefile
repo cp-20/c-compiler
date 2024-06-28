@@ -25,8 +25,8 @@ dist/lib:
 test: $(TARGET)
 	./test.sh
 
-single-test: $(TARGET)
-	./test.sh $(TEST)
+test-ok: $(TARGET)
+	./test.sh --show-ok-result
 
 clean:
 	rm -f $(TARGET) dist/*.o dist/*~ dist/lib/*.o

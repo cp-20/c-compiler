@@ -22,15 +22,13 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
   if (node->kind == ND_DEREF) {
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
     Variable* lvar_val = pop_variable(stack);
-    if (lvar_val->type != TYPE_PTR) {
+    if (!is_pointer_like(lvar_val)) {
       error("間接参照演算子の右辺値がポインタではありません");
     }
     char* rhs_type = get_variable_type_str(lvar_val);
     int r_ptr_val = r_register(rctx);
     push_code(code, "  %%%d = load %s, %s* %%%d, align 8\n", r_ptr_val,
               rhs_type, rhs_type, lvar_val->reg);
-
-    printf("  ; %s\n", get_variable_type_str(lvar_val->ptr_to));
     Variable* lvar = with_reg(lvar_val->ptr_to, r_ptr_val);
     return lvar;
   }
@@ -65,7 +63,21 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   } else if (node->kind == ND_LVAR) {
     // ローカル変数の場合はその値をスタックに積む
     Variable* var = locals_r[node->offset];
-    push_variable(stack, var);
+    if (var->type == TYPE_ARRAY) {
+      int r_var = r_register(rctx);
+      push_code(code,
+                "  %%%d = getelementptr inbounds %s, ptr %%%d, i64 0, i64 0\n",
+                r_var, get_variable_type_str(var), var->reg);
+      // int r_ptr = r_register(rctx);
+      // char* ptr_to_type = get_variable_type_str(var->ptr_to);
+      // push_code(code, "  %%%d = alloca %s, align 8\n", r_ptr, ptr_to_type);
+      // push_code(code, "  store %s* %%%d, %s** %%%d, align 8\n", ptr_to_type,
+      //           r_var, ptr_to_type, r_ptr);
+      // push_variable(stack, new_variable(r_ptr, TYPE_PTR, var->ptr_to, 0));
+      push_variable(stack, new_variable(r_var, TYPE_PTR, var->ptr_to, 0));
+    } else {
+      push_variable(stack, var);
+    }
     return code;
   } else if (node->kind == ND_ASSIGN) {
     // 代入の場合は右辺を計算して左辺に代入する
@@ -246,30 +258,25 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
 
     return code;
   } else if (node->kind == ND_INCR || node->kind == ND_DECR) {
-    char op[4];
-    if (node->kind == ND_INCR) {
-      sprintf(op, "add");
-    } else if (node->kind == ND_DECR) {
-      sprintf(op, "sub");
-    }
-    Variable* lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
-    char* lvar_type = get_variable_type_str(lvar);
-    int lvar_size = get_variable_size(lvar);
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-    Variable* lvar_val = pop_variable(stack);
-    int r_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_val, lvar_type,
-              lvar_type, lvar_val->reg, lvar_size);
-    int r_return = r_register(rctx);
-    push_code(code, "  %%%d = alloca %s, align 4\n", r_return, lvar_type);
-    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", lvar_type, r_val,
-              lvar_type, r_return, lvar_size);
+    Variable* var = pop_variable(stack);
+    char* var_type = get_variable_type_str(var);
+    int var_size = get_variable_size(var);
     int r_result = r_register(rctx);
-    push_code(code, "  %%%d = %s nsw %s %%%d, 1\n", r_result, op, lvar_type,
-              r_val);
-    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", lvar_type,
-              r_result, lvar_type, lvar->reg, lvar_size);
-    push_variable(stack, new_variable(r_return, lvar->type, lvar->ptr_to, 0));
+    push_code(code, "  %%%d = alloca %s, align %d\n", r_result, var_type,
+              var_size);
+    int r_val = r_register(rctx);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_val, var_type,
+              var_type, var->reg, var_size);
+    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", var_type, r_val,
+              var_type, r_result, var_size);
+    push_variable(stack, with_reg(var, r_result));
+
+    NodeKind op_type = node->kind == ND_INCR ? ND_ADD : ND_SUB;
+    Node* op_node = new_node(ND_ASSIGN, node->lhs,
+                             new_node(op_type, node->lhs, new_node_num(1)));
+    merge_code(code, generate_node(op_node, stack, locals_r, rctx));
+    pop_variable(stack);
     return code;
   } else if (node->kind == ND_REF) {
     // 参照の場合は左辺値のポインタをスタックに積む
@@ -284,11 +291,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   } else if (node->kind == ND_DEREF) {
     // 間接参照の場合はポインタの値をスタックに積む
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-    printf("  ; debug = ");
-    print_node(node->lhs);
-    printf("\n");
     Variable* rhs = pop_variable(stack);
-    if (rhs->type != TYPE_PTR) {
+    if (!is_pointer_like(rhs)) {
       error("間接参照演算子の右辺値がポインタではありません");
     }
     char* rhs_type = get_variable_type_str(rhs);
@@ -305,8 +309,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
               result_size);
     push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", result_type, r_val,
               result_type, r_result, result_size);
-    rhs->ptr_to->reg = r_result;
-    push_variable(stack, rhs->ptr_to);
+    push_variable(stack, with_reg(rhs->ptr_to, r_result));
     return code;
   }
 
@@ -332,9 +335,9 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_right_val,
             rval_type, rval_type, rval->reg, rval_size);
 
-  if (result_val->type == TYPE_PTR) {
+  if (is_pointer_like(result_val)) {
     int r_result_val = r_register(rctx);
-    if (lval->type == TYPE_PTR && rval->type != TYPE_PTR) {
+    if (is_pointer_like(lval) && !is_pointer_like(rval)) {
       char* ptr_type = get_variable_type_str(lval->ptr_to);
       int r_ptr_diff = r_right_val;
       if (node->kind == ND_SUB) {
@@ -346,7 +349,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       push_code(code, "  %%%d = getelementptr inbounds %s, %s %%%d, %s %%%d\n",
                 r_result_val, ptr_type, lval_type, r_left_val, rval_type,
                 r_ptr_diff);
-    } else if (lval->type != TYPE_PTR && rval->type == TYPE_PTR) {
+    } else if (!is_pointer_like(lval) && is_pointer_like(rval)) {
       char* ptr_type = get_variable_type_str(rval->ptr_to);
       push_code(code, "  %%%d = getelementptr inbounds %s, %s %%%d, %s %%%d\n",
                 r_result_val, ptr_type, rval_type, r_right_val, lval_type,

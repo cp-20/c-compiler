@@ -98,14 +98,14 @@ Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
     return lval;
   }
 
-  if (lval->type == TYPE_PTR && rval->type != TYPE_PTR) {
+  if (lval->type == TYPE_PTR && is_number(rval)) {
     if (kind == ND_ADD || kind == ND_SUB) {
       return lval;
     }
     error("ポインタ型の変数に対する演算子が不正です");
   }
 
-  if (lval->type != TYPE_PTR && rval->type == TYPE_PTR) {
+  if (is_number(lval) && rval->type == TYPE_PTR) {
     if (kind == ND_ADD) {
       return rval;
     }

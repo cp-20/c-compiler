@@ -4,6 +4,12 @@
 #include "tokenizer.h"
 #include "variable.h"
 
+// プログラム
+typedef struct Program {
+  vector *structs;    // 構造体のリスト
+  vector *functions;  // 関数のリスト
+} Program;
+
 // ローカル変数の型
 typedef struct LVar LVar;
 struct LVar {
@@ -13,6 +19,12 @@ struct LVar {
   Variable *var;  // 変数の情報
 };
 
+void print_debug_token(char *type, Token **token);
+
+Variable *find_struct_from_vector(Token *tok, vector *structs);
+Variable *find_struct(Token *tok);
+int find_struct_field(Token *tok, Variable *struct_var);
+
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
 LVar *find_lvar(Token *tok, vector *locals);
 
@@ -20,7 +32,7 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 
 Node *new_node_num(int val);
 
-vector *program(Token **token);
+Program *program(Token **token);
 Function *function(Token **token);
 Node *stmt(Token **token);
 Node *expr(Token **token);
@@ -33,7 +45,10 @@ Node *add(Token **token);
 Node *mul(Token **token);
 Node *unary(Token **token);
 Node *primary(Token **token);
+Node *parse_primary_access(Token **token, Node *node);
+Variable *parse_struct(Token **token, bool name_required);
+Variable *type(Token **token);
 
-vector *parse(Token *token);
+Program *parse(Token *token);
 
 void print_node(Node *node);

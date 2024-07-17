@@ -49,6 +49,7 @@ bool is_special(char c) {
   if (c == '&') return true;
   if (c == '[') return true;
   if (c == ']') return true;
+  if (c == '.') return true;
   return false;
 }
 
@@ -61,6 +62,7 @@ bool is_special2(char *p) {
   if (strncmp(p, "||", 2) == 0) return true;
   if (strncmp(p, "++", 2) == 0) return true;
   if (strncmp(p, "--", 2) == 0) return true;
+  if (strncmp(p, "->", 2) == 0) return true;
   return false;
 }
 
@@ -127,17 +129,24 @@ Token *tokenize(char *p) {
       continue;
     }
 
-    // sizeof演算子
-    if (strncmp(p, "sizeof", 6) == 0 && !is_alnum(p[6])) {
-      cur = new_token(TK_SIZEOF, cur, p);
-      p += 6;
-      continue;
-    }
-
     // int型
     if (strncmp(p, "int", 3) == 0 && !is_alnum(p[3])) {
       cur = new_token(TK_INT, cur, p);
       p += 3;
+      continue;
+    }
+
+    // struct
+    if (strncmp(p, "struct", 6) == 0 && !is_alnum(p[6])) {
+      cur = new_token(TK_STRUCT, cur, p);
+      p += 6;
+      continue;
+    }
+
+    // sizeof演算子
+    if (strncmp(p, "sizeof", 6) == 0 && !is_alnum(p[6])) {
+      cur = new_token(TK_SIZEOF, cur, p);
+      p += 6;
       continue;
     }
 

@@ -127,6 +127,13 @@ void print_node(Node *node) {
     return;
   }
 
+  if (node->kind == ND_ACCESS) {
+    print_node(node->lhs);
+    printf(".");
+    print_node(node->rhs);
+    return;
+  }
+
   printf("(");
   print_node(node->lhs);
   if (node->kind == ND_ADD) {

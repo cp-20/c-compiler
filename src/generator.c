@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "code.h"
+#include "debug.h"
 #include "error.h"
 #include "llvm.h"
 #include "parser.h"
@@ -12,9 +13,6 @@
 // 左辺値のポインタ (レジスタ) を返す
 Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
                    rctx rctx) {
-  if (node->kind != ND_LVAR && node->kind != ND_DEREF)
-    error("代入の左辺値が変数ではありません");
-
   if (node->kind == ND_LVAR) {
     return locals_r[node->offset];
   }
@@ -24,17 +22,32 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
     Variable* lvar_val = pop_variable(stack);
     if (!is_pointer_like(lvar_val)) {
       error("間接参照演算子の右辺値がポインタではありません");
+      return NULL;
     }
     char* rhs_type = get_variable_type_str(lvar_val);
+    int size = get_variable_size(lvar_val);
     int r_ptr_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align 8\n", r_ptr_val,
-              rhs_type, rhs_type, lvar_val->reg);
+    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_ptr_val,
+              rhs_type, rhs_type, lvar_val->reg, size);
     Variable* lvar = with_reg(lvar_val->ptr_to, r_ptr_val);
     return lvar;
   }
 
+  if (node->kind == ND_ACCESS) {
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    Variable* lvar_val = pop_variable(stack);
+    char* type = get_variable_type_str(lvar_val);
+    int r_field = r_register(rctx);
+    push_code(code,
+              "  %%%d = getelementptr inbounds %s, %s* %%%d, i32 0, i32 %d\n",
+              r_field, type, type, lvar_val->reg, node->rhs->val);
+    LVar* field = vec_at(lvar_val->fields, node->rhs->val);
+    Variable* field_var = with_reg(field->var, r_field);
+    return field_var;
+  }
+
   error("代入の左辺値が変数ではありません");
-  return locals_r[0];
+  return NULL;
 }
 
 Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
@@ -82,6 +95,10 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   } else if (node->kind == ND_ASSIGN) {
     // 代入の場合は右辺を計算して左辺に代入する
     Variable* lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
+    if (node->rhs->kind == ND_CALL) {
+      free(node->rhs->call->ret);
+      node->rhs->call->ret = lvar;
+    }
     merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
 
     Variable* rhs = get_last_variable(stack);
@@ -240,8 +257,9 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     // 関数呼び出し本体
     int r_result_val = r_register(rctx);
     // とりあえず関数の戻り値はi32固定
-    push_code(code, "  %%%d = call i32 @%.*s(", r_result_val, node->call->len,
-              node->call->name);
+    char* return_type = get_variable_type_str(node->call->ret);
+    push_code(code, "  %%%d = call %s @%.*s(", r_result_val, return_type,
+              node->call->len, node->call->name);
     for (int i = 0; i < node->call->args->size; i++) {
       if (i > 0) push_code(code, ", ");
       push_code(code, "%s noundef %%%d", get_variable_type_str(&args[i]),
@@ -251,10 +269,10 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
 
     // 結果をスタックに積む
     int r_result = r_register(rctx);
-    push_code(code, "  %%%d = alloca i32, align 4\n", r_result);
-    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_result_val,
-              r_result);
-    push_variable(stack, new_variable(r_result, TYPE_I32, NULL, 0));
+    push_code(code, "  %%%d = alloca %s, align 4\n", r_result, return_type);
+    push_code(code, "  store %s %%%d, %s* %%%d, align 4\n", return_type,
+              r_result_val, return_type, r_result);
+    push_variable(stack, with_reg(node->call->ret, r_result));
 
     return code;
   } else if (node->kind == ND_INCR || node->kind == ND_DECR) {
@@ -299,17 +317,20 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     int r_ptr_val = r_register(rctx);
     push_code(code, "  %%%d = load %s, %s* %%%d, align 8\n", r_ptr_val,
               rhs_type, rhs_type, rhs->reg);
-    char* result_type = get_variable_type_str(rhs->ptr_to);
-    int result_size = get_variable_size(rhs->ptr_to);
-    int r_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_val,
-              result_type, result_type, r_ptr_val, result_size);
-    int r_result = r_register(rctx);
-    push_code(code, "  %%%d = alloca %s, align %d\n", r_result, result_type,
-              result_size);
-    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", result_type, r_val,
-              result_type, r_result, result_size);
-    push_variable(stack, with_reg(rhs->ptr_to, r_result));
+    push_variable(stack, with_reg(rhs->ptr_to, r_ptr_val));
+    return code;
+  } else if (node->kind == ND_ACCESS) {
+    // フィールドアクセスの場合は構造体の値をスタックに積む
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    Variable* lvar = pop_variable(stack);
+    char* type = get_variable_type_str(lvar);
+    int r_field = r_register(rctx);
+    push_code(code,
+              "  %%%d = getelementptr inbounds %s, %s* %%%d, i32 0, i32 %d\n",
+              r_field, type, type, lvar->reg, node->rhs->val);
+    LVar* field = vec_at(lvar->fields, node->rhs->val);
+    Variable* field_var = with_reg(field->var, r_field);
+    push_variable(stack, field_var);
     return code;
   }
 
@@ -455,10 +476,27 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   return code;
 }
 
+void generate_struct(Variable* struct_val) {
+  printf("%%struct.%.*s = type { ", struct_val->len, struct_val->name);
+  for (int i = 0; i < struct_val->fields->size; i++) {
+    if (i != 0) printf(", ");
+    LVar* field = vec_at(struct_val->fields, i);
+    char* field_type = get_variable_type_str(field->var);
+    printf("%s", field_type);
+  }
+  printf(" }\n");
+}
+
 void generate_func(Function* func) {
   // 初期化処理
   vector* stack = new_vector();
   rctx rctx = r_init();
+
+  // 関数のローカル構造体の宣言
+  for (int i = 0; i < func->structs->size; i++) {
+    Variable* var = vec_at(func->structs, i);
+    generate_struct(var);
+  }
 
   printf("define dso_local i32 @%.*s(", func->len, func->name);
   int args[func->argc];
@@ -526,19 +564,30 @@ void generate_header() {
 }
 
 void generate_print() {
-  printf("declare i32 @print(i32 noundef, ...) #1\n");
-  printf("declare i32 @scan() #0\n");
+  printf("declare i32 @print(i32 noundef, ...) #0\n");
+  printf("declare i32 @scan() #1\n");
   printf(
       "declare i32 @alloc4(i32** noundef, i32 noundef, i32 noundef, i32 "
-      "noundef, i32 noundef) #0\n");
+      "noundef, i32 noundef) #2\n");
+  printf(
+      "; Function Attrs: nounwind allocsize(0,1)\n"
+      "declare noalias ptr @calloc(i64 noundef, i64 noundef) #3\n");
+  printf(
+      "; Function Attrs: nounwind allocsize(0,1)\n"
+      "declare noalias ptr @malloc(i64 noundef, i64 noundef) #4\n");
 }
 
-void generate(vector* code) {
+void generate(Program* code) {
   generate_header();
 
+  for (int i = 0; i < code->structs->size; i++) {
+    Variable* strcut_val = vec_at(code->structs, i);
+    generate_struct(strcut_val);
+  }
+
   // コード生成
-  for (int i = 0; i < code->size; i++) {
-    Function* func = vec_at(code, i);
+  for (int i = 0; i < code->functions->size; i++) {
+    Function* func = vec_at(code->functions, i);
     generate_func(func);
   }
 

@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#include "node.h"
+#include "node-kind.h"
 #include "variable.h"
 #include "vector.h"
 
@@ -10,14 +10,18 @@ typedef enum {
   TYPE_I32,
   TYPE_PTR,
   TYPE_ARRAY,
+  TYPE_STRUCT,
 } Type;
 
 typedef struct Variable Variable;
 
 struct Variable {
+  char* name;        // 変数名
+  int len;           // 名前の長さ
   int reg;           // レジスタ番号
   Type type;         // 変数の型 (参照先の型)
   Variable* ptr_to;  // 参照先
+  vector* fields;    // 構造体のフィールド
   int array_size;    // 配列の要素数
 };
 

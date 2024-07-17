@@ -4,6 +4,7 @@
 
 #include "error.h"
 #include "node.h"
+#include "parser.h"
 #include "variable.h"
 #include "vector.h"
 
@@ -34,7 +35,7 @@ Variable* get_node_type(Node* node, vector* locals) {
     case ND_ASSIGN:
       return get_node_type(node->lhs, locals);
     case ND_LVAR:
-      return (Variable*)vec_at(locals, node->offset);
+      return ((LVar*)vec_at(locals, node->offset))->var;
     case ND_NUM:
       return new_variable(0, TYPE_I32, NULL, 0);
     default:

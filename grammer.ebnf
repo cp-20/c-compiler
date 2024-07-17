@@ -1,31 +1,38 @@
-program     = function*
-function    = "int" ident "(" "int" ident ("," "int" ident)* ")" "{" stmt* "}"
-stmt        = expr ";"
-            | "{" stmt* "}"
-            | "if" "(" expr ")" stmt ("else" stmt)?
-            | "while" "(" expr ")" stmt
-            | "for" "(" expr? ";" expr? ";" expr? ")" stmt
-            | "return" expr ";"
-expr        = logical
-declaration = "int" "*"* ident ("=" logical)? ("," ident ("=" logical)? )*
-            | "int" "*"* ident "[" num "]" ("=" "{" (logical ("," logical)*)? "}")?
-            | "int" "*"* ident "[" "]" ("=" "{" (logical ("," logical)*)? "}")?
-logical     = assign ("&&" assign | "||" assign)*
-assign      = equality ("=" assign)?
-equality    = relational ("==" relational | "!=" relational)*
-relational  = add ("<" add | "<=" add | ">" add | ">=" add)*
-add         = mul ("+" mul | "-" mul)*
-mul         = unary ("*" unary | "/" unary)*
-unary       = "sizeof" (unary | type)
-            | ("+" | "-")? primary
-            | "!" primary
-            | "++" primary
-            | "--" primary
-            | primary "++"
-            | primary "--"
-            | "&"* primary
-            | "*"* primary
-primary     = num
-            | ident ("(" ident ("," ident)* ")")?
-            | ident ("[" logical "]")*
-            | "(" expr ")"
+program        = function*
+function       = type ident "(" type ident ("," type ident)* ")" "{" stmt* "}"
+               | struct_decl ";"
+stmt           = expr ";"
+               | "{" stmt* "}"
+               | "if" "(" expr ")" stmt ("else" stmt)?
+               | "while" "(" expr ")" stmt
+               | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+               | "return" expr ";"
+expr           = logical
+declaration    = type ident ("=" logical)? ("," ident ("=" logical)? )*
+               | type ident "[" num "]" ("=" "{" (logical ("," logical)*)? "}")?
+               | type ident "[" "]" ("=" "{" (logical ("," logical)*)? "}")?
+               | struct_decl ("=" "{" (logical ("," logical)*)? "}")?
+logical        = assign ("&&" assign | "||" assign)*
+assign         = equality ("=" assign)?
+equality       = relational ("==" relational | "!=" relational)*
+relational     = add ("<" add | "<=" add | ">" add | ">=" add)*
+add            = mul ("+" mul | "-" mul)*
+mul            = unary ("*" unary | "/" unary)*
+unary          = "sizeof" (unary | type)
+               | ("+" | "-")? primary
+               | "!" primary
+               | "++" primary
+               | "--" primary
+               | primary "++"
+               | primary "--"
+               | "&"* primary
+               | "*"* primary
+primary        = num
+               | "(" expr ")" primary_access*
+               | ident ("(" ident ("," ident)* ")")? primary_access*
+primary_access = "[" logical "]"
+               | "." ident
+               | "->" ident 
+struct_decl    = "struct" ident "{" (type ident ";")* "}"
+struct_type    = "struct" (ident | ident? "{" (type ident ";")* "}")
+type           = ("int" | struct_type) "*"*

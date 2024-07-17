@@ -21,6 +21,9 @@ Variable* new_variable(int reg, Type type, Variable* ptr_to, int array_size) {
 Variable* with_reg(Variable* var, int reg) {
   Variable* new_var =
       new_variable(reg, var->type, var->ptr_to, var->array_size);
+  new_var->name = var->name;
+  new_var->len = var->len;
+  new_var->fields = var->fields;
   return new_var;
 }
 
@@ -46,12 +49,26 @@ char* get_variable_type_str(Variable* var) {
               get_variable_type_str(var->ptr_to));
       return type;
     }
+    case TYPE_STRUCT: {
+      char* type = calloc(1, var->len + 9);
+      sprintf(type, "%%struct.%.*s", var->len, var->name);
+      return type;
+    }
   }
 }
 
 int get_variable_size(Variable* var) {
   if (var->type == TYPE_ARRAY) {
     return align(get_variable_size(var->ptr_to) * var->array_size);
+  }
+
+  if (var->type == TYPE_STRUCT) {
+    int size = 0;
+    for (int i = 0; i < var->fields->size; i++) {
+      LVar* field = vec_at(var->fields, i);
+      size += get_variable_size(field->var);
+    }
+    return align(size);
   }
 
   if (var->type == TYPE_PTR) {

@@ -18,4 +18,4 @@ void generate_header(void);
 
 void generate_print(void);
 
-void generate(vector* code);
+void generate(Program* code);

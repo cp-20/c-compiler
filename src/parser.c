@@ -1,9 +1,17 @@
 #include "parser.h"
 
 #include "color.h"
+#include "debug.h"
 #include "node-helper.h"
 #include "tokenizer.h"
 #include "vector.h"
+
+void print_debug_token(char *type, Token **token) {
+  if (!f_debug) return;
+  print_debug(COL_BLUE "[parse] " COL_GREEN "[%s] " COL_YELLOW "%s " COL_RESET
+                       "(%d)",
+              type, (*token)->str, (*token)->kind);
+}
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
 LVar *find_lvar(Token *tok, vector *locals) {
@@ -16,69 +24,127 @@ LVar *find_lvar(Token *tok, vector *locals) {
   return NULL;
 }
 
-vector *program(Token **token) {
-  vector *code = new_vector();
-  while ((*token)->kind != TK_EOF) {
-    Function *func = function(token);
-    vec_push_last(code, func);
+vector *global_structs;
+vector *global_local_structs;
+int anon_structs_index;
+
+Variable *find_struct_from_vector(Token *tok, vector *structs) {
+  for (int i = 0; i < structs->size; i++) {
+    Variable *var = vec_at(structs, i);
+    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
+      return var;
+    }
   }
-  return code;
+  return NULL;
+}
+
+Variable *find_struct(Token *tok) {
+  Variable *var = find_struct_from_vector(tok, global_local_structs);
+  if (var != NULL) return var;
+  var = find_struct_from_vector(tok, global_structs);
+  return var;
+}
+
+int find_struct_field(Token *tok, Variable *struct_var) {
+  print_debug(COL_BLUE "[parse] " COL_GREEN "[find_struct_field] " COL_YELLOW
+                       "%.*s" COL_RESET,
+              tok->len, tok->str);
+  for (int i = 0; i < struct_var->fields->size; i++) {
+    LVar *field = vec_at(struct_var->fields, i);
+    if (field->len == tok->len && !memcmp(tok->str, field->name, field->len)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+Program *program(Token **token) {
+  print_debug_token("program", token);
+
+  vector *code = new_vector();
+  global_structs = new_vector();
+  anon_structs_index = 0;
+  while ((*token)->kind != TK_EOF) {
+    global_local_structs = new_vector();
+    Function *func = function(token);
+    if (func == NULL) continue;
+    vec_push_last(code, func);
+    func->structs = global_local_structs;
+  }
+  Program *program = calloc(1, sizeof(Program));
+  program->functions = code;
+  program->structs = global_structs;
+  return program;
 }
 
 static vector *global_locals;
 
 Function *function(Token **token) {
-  Function *func = calloc(1, sizeof(Function));
+  print_debug_token("function", token);
 
-  if (!consume_reserved(token, TK_INT)) {
-    error_at((*token)->str, "intではありません");
-  }
-
-  Token *tok = consume_ident(token);
-  func->name = tok->str;
-  func->len = tok->len;
-
-  expect(token, "(");
-  vector *locals = new_vector();
-  int argc = 0;
-  while (!consume(token, ")")) {
-    if (!consume_reserved(token, TK_INT)) {
-      error_at((*token)->str, "intではありません");
+  Variable *return_type = type(token);
+  if (return_type != NULL) {
+    if (return_type->type == TYPE_STRUCT) {
+      vec_push_last(global_structs, return_type);
     }
 
     Token *tok = consume_ident(token);
     if (tok == NULL) {
-      error_at((*token)->str, "識別子ではありません");
+      expect(token, ";");
+      return NULL;
     }
-    LVar *lvar = find_lvar(tok, locals);
-    if (lvar != NULL) {
-      error_at(tok->str, "変数が二重定義されています");
+
+    Function *func = calloc(1, sizeof(Function));
+    func->name = tok->str;
+    func->len = tok->len;
+    func->ret = return_type;
+
+    expect(token, "(");
+    vector *locals = new_vector();
+    int argc = 0;
+    while (!consume(token, ")")) {
+      Variable *argument_type = type(token);
+      if (argument_type == NULL) {
+        error_at((*token)->str, "型ではありません");
+      }
+
+      Token *tok = consume_ident(token);
+      if (tok == NULL) {
+        error_at((*token)->str, "識別子ではありません");
+      }
+      LVar *lvar = find_lvar(tok, locals);
+      if (lvar != NULL) {
+        error_at(tok->str, "変数が二重定義されています");
+      }
+      lvar = calloc(1, sizeof(LVar));
+      lvar->name = tok->str;
+      lvar->len = tok->len;
+      lvar->offset = locals->size;
+      lvar->var = argument_type;
+      vec_push_last(locals, lvar);
+      argc++;
+      consume(token, ",");
     }
-    lvar = calloc(1, sizeof(LVar));
-    lvar->name = tok->str;
-    lvar->len = tok->len;
-    lvar->offset = locals->size;
-    lvar->var = calloc(1, sizeof(Variable));
-    lvar->var->type = TYPE_I32;
-    vec_push_last(locals, lvar);
-    argc++;
-    consume(token, ",");
-  }
-  func->argc = argc;
-  func->locals = locals;
-  global_locals = locals;
+    func->argc = argc;
+    func->locals = locals;
+    global_locals = locals;
 
-  expect(token, "{");
-  vector *stmts = new_vector();
-  while (!consume(token, "}")) {
-    vec_push_last(stmts, stmt(token));
+    expect(token, "{");
+    vector *stmts = new_vector();
+    while (!consume(token, "}")) {
+      vec_push_last(stmts, stmt(token));
+    }
+    func->body = stmts;
+    return func;
   }
-  func->body = stmts;
 
-  return func;
+  error_at((*token)->str, "関数または構造体の定義ではありません");
+  return NULL;
 }
 
 Node *stmt(Token **token) {
+  print_debug_token("stmt", token);
+
   Node *node;
 
   if (consume(token, "{")) {
@@ -158,7 +224,10 @@ Node *stmt(Token **token) {
 Node *expr(Token **token) { return declaration(token); }
 
 Node *declaration(Token **token) {
-  if (!consume_reserved(token, TK_INT)) return logical(token);
+  print_debug_token("declaration", token);
+
+  Variable *var_type = type(token);
+  if (var_type == NULL) return logical(token);
 
   int ref_nest = 0;
   while (consume(token, "*")) ref_nest++;
@@ -179,7 +248,7 @@ Node *declaration(Token **token) {
     lvar->len = tok->len;
     lvar->offset = global_locals->size;
 
-    Variable *var = new_variable(-1, TYPE_I32, NULL, 0);
+    Variable *var = var_type;
     for (int nest = ref_nest; nest > 0; nest--) {
       Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
       var = ptr;
@@ -226,8 +295,23 @@ Node *declaration(Token **token) {
       if (consume(token, "=")) {
         Node *lvar_node = new_node(ND_LVAR, NULL, NULL);
         lvar_node->offset = lvar->offset;
-        Node *init_node = new_node(ND_ASSIGN, lvar_node, expr(token));
-        vec_push_last(stmts, init_node);
+
+        if (consume(token, "{")) {
+          int array_element = 0;
+          while (!consume(token, "}")) {
+            Node *val = logical(token);
+            Node *lvar_index_node =
+                new_node(ND_ACCESS, lvar_node, new_node_num(array_element));
+            Node *assign_node = new_node(ND_ASSIGN, lvar_index_node, val);
+            vec_push_last(stmts, assign_node);
+            array_element++;
+            if (consume(token, "}")) break;
+            expect(token, ",");
+          }
+        } else {
+          Node *init_node = new_node(ND_ASSIGN, lvar_node, expr(token));
+          vec_push_last(stmts, init_node);
+        }
       }
     }
   } while (consume(token, ","));
@@ -236,6 +320,8 @@ Node *declaration(Token **token) {
 }
 
 Node *logical(Token **token) {
+  print_debug_token("logical", token);
+
   Node *node = assign(token);
 
   for (;;) {
@@ -311,9 +397,16 @@ Node *mul(Token **token) {
 }
 
 Node *unary(Token **token) {
+  print_debug_token("unary", token);
+
   if (consume_reserved(token, TK_SIZEOF)) {
-    Node *node = unary(token);
-    Variable *node_type = get_node_type(node, global_locals);
+    expect(token, "(");
+    Variable *node_type = type(token);
+    if (node_type == NULL) {
+      Node *node = logical(token);
+      node_type = get_node_type(node, global_locals);
+    }
+    expect(token, ")");
     int node_size = get_variable_size(node_type);
     return new_node_num(node_size);
   }
@@ -365,15 +458,19 @@ Node *unary(Token **token) {
 }
 
 Node *primary(Token **token) {
+  print_debug_token("primary", token);
+
   // 次のトークンが"("なら、"(" expr ")"のはず
   if (consume(token, "(")) {
     Node *node = expr(token);
     expect(token, ")");
+
+    node = parse_primary_access(token, node);
     return node;
   }
 
   Token *tok = consume_ident(token);
-  if (tok) {
+  if (tok != NULL) {
     Node *node = calloc(1, sizeof(Node));
 
     if (consume(token, "(")) {
@@ -381,29 +478,23 @@ Node *primary(Token **token) {
       node->call = calloc(1, sizeof(Call));
       node->call->name = tok->str;
       node->call->len = tok->len;
+      node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);
       node->call->args = new_vector();
       while (!consume(token, ")")) {
         vec_push_last(node->call->args, expr(token));
         if (consume(token, ")")) break;
         expect(token, ",");
       }
-      return node;
+    } else {
+      node->kind = ND_LVAR;
+      LVar *lvar = find_lvar(tok, global_locals);
+      if (lvar == NULL) {
+        error_at(tok->str, "未定義の変数です: %.*s", tok->len, tok->str);
+      }
+      node->offset = lvar->offset;
     }
 
-    node->kind = ND_LVAR;
-    LVar *lvar = find_lvar(tok, global_locals);
-    if (lvar == NULL) {
-      error_at(tok->str, "未定義の変数です: %.*s", tok->len, tok->str);
-    }
-    node->offset = lvar->offset;
-
-    if (consume(token, "[")) {
-      int index = expect_number(token);
-      node =
-          new_node(ND_DEREF, new_node(ND_ADD, node, new_node_num(index)), NULL);
-      expect(token, "]");
-    }
-
+    node = parse_primary_access(token, node);
     return node;
   }
 
@@ -411,4 +502,128 @@ Node *primary(Token **token) {
   return new_node_num(expect_number(token));
 }
 
-vector *parse(Token *token) { return program(&token); }
+Node *parse_primary_access(Token **token, Node *node) {
+  print_debug_token("parse_primary_access", token);
+
+  while (true) {
+    if (consume(token, "[")) {
+      Node *index_node = logical(token);
+      node = new_node(ND_DEREF, new_node(ND_ADD, node, index_node), NULL);
+      expect(token, "]");
+      continue;
+    }
+    if (consume(token, ".")) {
+      Token *tok = consume_ident(token);
+      if (tok == NULL) {
+        error_at((*token)->str, "アクセス先のメンバーが存在しません");
+        return NULL;
+      }
+      Variable *struct_var = get_node_type(node, global_locals);
+      int field_index = find_struct_field(tok, struct_var);
+      if (field_index == -1) {
+        error_at(tok->str, "メンバーが存在しません");
+        return NULL;
+      }
+      node = new_node(ND_ACCESS, node, new_node_num(field_index));
+      continue;
+    }
+    if (consume(token, "->")) {
+      Token *tok = consume_ident(token);
+      if (tok == NULL) {
+        error_at((*token)->str, "アクセス先のメンバーが存在しません");
+        return NULL;
+      }
+      Variable *struct_var = get_node_type(node, global_locals);
+      int field_index = find_struct_field(tok, struct_var->ptr_to);
+      if (field_index == -1) {
+        error_at(tok->str, "メンバーが存在しません");
+        return NULL;
+      }
+      Node *struct_node = new_node(ND_DEREF, node, NULL);
+      node = new_node(ND_ACCESS, struct_node, new_node_num(field_index));
+      continue;
+    }
+    break;
+  }
+  return node;
+}
+
+Variable *parse_struct(Token **token, bool is_declare) {
+  print_debug_token("parse_struct", token);
+
+  if (!consume_reserved(token, TK_STRUCT)) {
+    return NULL;
+  }
+  Token *tok = consume_ident(token);
+  if (tok == NULL) {
+    if (is_declare) {
+      error_at((*token)->str, "識別子ではありません");
+      return NULL;
+    }
+    tok = calloc(1, sizeof(Token));
+    tok->str = calloc(1, 16);
+    sprintf(tok->str, "anon.%d", anon_structs_index++);
+    tok->len = strlen(tok->str);
+  }
+  Variable *var = find_struct(tok);
+
+  if (consume(token, "{")) {
+    if (var != NULL) {
+      error_at(tok->str, "変数が二重定義されています");
+      return NULL;
+    }
+    var = calloc(1, sizeof(Variable));
+    var->type = TYPE_STRUCT;
+    var->fields = new_vector();
+    var->name = tok->str;
+    var->len = tok->len;
+    if (!is_declare) {
+      vec_push_last(global_local_structs, var);
+    }
+
+    while (!consume(token, "}")) {
+      Variable *field_type = type(token);
+      if (field_type == NULL) {
+        error_at((*token)->str, "型ではありません");
+        return NULL;
+      }
+      Token *tok = consume_ident(token);
+      if (tok == NULL) {
+        error_at((*token)->str, "識別子ではありません");
+        return NULL;
+      }
+      LVar *field = calloc(1, sizeof(LVar));
+      field->name = tok->str;
+      field->len = tok->len;
+      field->var = field_type;
+      vec_push_last(var->fields, field);
+      expect(token, ";");
+    }
+  } else {
+    if (var == NULL) {
+      error_at(tok->str, "未定義の構造体です: %.*s", tok->len, tok->str);
+      return NULL;
+    }
+  }
+  return var;
+}
+
+Variable *type(Token **token) {
+  print_debug_token("type", token);
+
+  if (consume_reserved(token, TK_INT)) {
+    int ref_nest = 0;
+    while (consume(token, "*")) ref_nest++;
+    Variable *var = new_variable(-1, TYPE_I32, NULL, 0);
+    for (int nest = ref_nest; nest > 0; nest--) {
+      Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
+      var = ptr;
+    }
+    return var;
+  }
+
+  Variable *var = parse_struct(token, false);
+  return var;
+}
+
+Program *parse(Token *token) { return program(&token); }

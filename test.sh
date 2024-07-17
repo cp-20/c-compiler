@@ -252,12 +252,23 @@ assert "int main() { int a = 3; int* b = &a, c = &a; print(*b); }" "3"
 describe "sizeof"
 assert "int main() { print(sizeof(1)); }" "4"
 assert "int main() { print(sizeof(1 + 2)); }" "4"
+assert "int main() { print(sizeof(struct { int a; int *b; })); }" "16"
+assert "struct st { int a; int *b; }; int main() { print(sizeof(struct st)); }" "16"
 
 describe "配列 (stack pointer)"
 assert "int main() { int a[3]; a[0] = 1; a[1] = 2; a[2] = 3; print(a[0] + a[1]); print(a[1] + a[2]); }" "3 5"
 assert "int main() { int a[3]; a[0] = 1; a[1] = 2; a[2] = 3; int *p = a; print(*p); p++; print(*p); p++; print(*p); }" "1 2 3"
 assert "int main() { int a[3] = {1, 2, 3}; print(a[2]); }" "3"
 assert "int main() { int a[] = {1, 2, 3}; print(a[1]); }" "2"
+
+describe "構造体"
+assert "int main() { struct { int a; } x; }" ""
+assert "int main() { struct { int a; } x; x.a = 1; print(x.a); }" "1"
+assert "int main() { struct { int a; int b; } x = { 1, 2 }; print(x.b); }" "2"
+assert "struct st { int a; int *b; }; int main() { struct st x; x.a = 10; print(x.a); }" "10"
+assert "struct st { int a; int *b; }; int main() { struct st x; *x.b = 5; print(*x.b); }" "5"
+assert "struct st { int a; int *b; }; int main() { struct st *x = calloc(1, sizeof(struct st)); x->a = 10; print(x->a); }" "10"
+assert "struct st { int a; int *b; }; int main() { struct st *x = calloc(1, sizeof(struct st)); x->b = malloc(sizeof(int)); *(x->b) = 5; print(*(x->b)); }" "5"
 
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "

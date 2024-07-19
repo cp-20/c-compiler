@@ -13,8 +13,14 @@ void print_debug_token(char *type, Token **token) {
               type, (*token)->str, (*token)->kind);
 }
 
+vector *global_locals;
+vector *global_structs;
+vector *global_local_structs;
+vector *global_globals;
+int anon_structs_index;
+
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
-LVar *find_lvar(Token *tok, vector *locals) {
+LVar *find_lvar_from_vector(Token *tok, vector *locals) {
   for (int i = 0; i < locals->size; i++) {
     LVar *lvar = vec_at(locals, i);
     if (lvar->len == tok->len && !memcmp(tok->str, lvar->name, lvar->len)) {
@@ -24,9 +30,13 @@ LVar *find_lvar(Token *tok, vector *locals) {
   return NULL;
 }
 
-vector *global_structs;
-vector *global_local_structs;
-int anon_structs_index;
+LVar *find_lvar(Token *tok) {
+  LVar *lvar = find_lvar_from_vector(tok, global_locals);
+  if (lvar == NULL) {
+    lvar = find_lvar_from_vector(tok, global_globals);
+  }
+  return lvar;
+}
 
 Variable *find_struct_from_vector(Token *tok, vector *structs) {
   for (int i = 0; i < structs->size; i++) {
@@ -63,6 +73,7 @@ Program *program(Token **token) {
 
   vector *code = new_vector();
   global_structs = new_vector();
+  global_globals = new_vector();
   anon_structs_index = 0;
   while ((*token)->kind != TK_EOF) {
     global_local_structs = new_vector();
@@ -74,10 +85,9 @@ Program *program(Token **token) {
   Program *program = calloc(1, sizeof(Program));
   program->functions = code;
   program->structs = global_structs;
+  program->globals = global_globals;
   return program;
 }
-
-static vector *global_locals;
 
 Function *global_decl(Token **token) {
   print_debug_token("global_decl", token);
@@ -94,48 +104,66 @@ Function *global_decl(Token **token) {
       return NULL;
     }
 
-    Function *func = calloc(1, sizeof(Function));
-    func->name = tok->str;
-    func->len = tok->len;
-    func->ret = return_type;
+    // 関数の定義
+    if (consume(token, "(")) {
+      Function *func = calloc(1, sizeof(Function));
+      func->name = tok->str;
+      func->len = tok->len;
+      func->ret = return_type;
 
-    expect(token, "(");
-    vector *locals = new_vector();
-    int argc = 0;
-    while (!consume(token, ")")) {
-      Variable *argument_type = type(token);
-      if (argument_type == NULL) {
-        error_at((*token)->str, "型ではありません");
-      }
+      vector *locals = new_vector();
+      int argc = 0;
+      while (!consume(token, ")")) {
+        Variable *argument_type = type(token);
+        if (argument_type == NULL) {
+          error_at((*token)->str, "型ではありません");
+        }
 
-      Token *tok = consume_ident(token);
-      if (tok == NULL) {
-        error_at((*token)->str, "識別子ではありません");
+        Token *tok = consume_ident(token);
+        if (tok == NULL) {
+          error_at((*token)->str, "識別子ではありません");
+        }
+        LVar *lvar = find_lvar_from_vector(tok, locals);
+        if (lvar != NULL) {
+          error_at(tok->str, "変数が二重定義されています");
+        }
+        lvar = calloc(1, sizeof(LVar));
+        lvar->name = tok->str;
+        lvar->len = tok->len;
+        lvar->offset = locals->size;
+        lvar->var = argument_type;
+        vec_push_last(locals, lvar);
+        argc++;
+        consume(token, ",");
       }
-      LVar *lvar = find_lvar(tok, locals);
+      func->argc = argc;
+      func->locals = locals;
+      global_locals = locals;
+      expect(token, "{");
+      vector *stmts = new_vector();
+      while (!consume(token, "}")) {
+        vec_push_last(stmts, stmt(token));
+      }
+      func->body = stmts;
+      return func;
+    }
+
+    // グローバル変数の宣言
+    if (consume(token, ";")) {
+      LVar *lvar = find_lvar_from_vector(tok, global_globals);
       if (lvar != NULL) {
         error_at(tok->str, "変数が二重定義されています");
       }
       lvar = calloc(1, sizeof(LVar));
       lvar->name = tok->str;
       lvar->len = tok->len;
-      lvar->offset = locals->size;
-      lvar->var = argument_type;
-      vec_push_last(locals, lvar);
-      argc++;
-      consume(token, ",");
+      lvar->offset = -global_globals->size - 1;
+      lvar->var = return_type;
+      lvar->var->name = tok->str;
+      lvar->var->len = tok->len;
+      vec_push_last(global_globals, lvar);
+      return NULL;
     }
-    func->argc = argc;
-    func->locals = locals;
-    global_locals = locals;
-
-    expect(token, "{");
-    vector *stmts = new_vector();
-    while (!consume(token, "}")) {
-      vec_push_last(stmts, stmt(token));
-    }
-    func->body = stmts;
-    return func;
   }
 
   error_at((*token)->str, "関数または構造体の定義ではありません");
@@ -239,7 +267,7 @@ Node *local_decl(Token **token) {
     if (tok == NULL) {
       error_at((*token)->str, "識別子ではありません");
     }
-    LVar *lvar = find_lvar(tok, global_locals);
+    LVar *lvar = find_lvar(tok);
     if (lvar != NULL) {
       error_at(tok->str, "変数が二重定義されています");
     }
@@ -336,6 +364,7 @@ Node *logical(Token **token) {
 
 Node *assign(Token **token) {
   Node *node = equality(token);
+  print_debug("node->offset = %d", node->offset);
   if (consume(token, "=")) node = new_node(ND_ASSIGN, node, assign(token));
   return node;
 }
@@ -493,7 +522,7 @@ Node *primary(Token **token) {
       }
     } else {
       node->kind = ND_LVAR;
-      LVar *lvar = find_lvar(tok, global_locals);
+      LVar *lvar = find_lvar(tok);
       if (lvar == NULL) {
         error_at(tok->str, "未定義の変数です: %.*s", tok->len, tok->str);
       }

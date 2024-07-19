@@ -278,6 +278,10 @@ assert "void *func(void *a) { return a; } int main() { int x = 7; print(*(int*)f
 assert "void *func(void *a) { return a; } int main() { int x = 7; void *a = func(&x); print(*(int*)a); }" "7"
 assert "void *func(void *a) { return a; } int main() { int x = 7; int *a = (int*)func(&x); print(*a); }" "7"
 
+describe "グローバル変数"
+assert "int a; int main() { a = 3; print(a); }" "3"
+assert "int a; void func() { a = 5; } int main() { func(); print(a); }" "5"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

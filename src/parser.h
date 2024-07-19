@@ -7,6 +7,7 @@
 // プログラム
 typedef struct Program {
   vector *structs;    // 構造体のリスト
+  vector *globals;    // グローバル変数のリスト
   vector *functions;  // 関数のリスト
 } Program;
 
@@ -26,7 +27,7 @@ Variable *find_struct(Token *tok);
 int find_struct_field(Token *tok, Variable *struct_var);
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
-LVar *find_lvar(Token *tok, vector *locals);
+LVar *find_lvar_from_vector(Token *tok, vector *locals);
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 

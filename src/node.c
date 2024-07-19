@@ -33,7 +33,11 @@ void print_node(Node *node) {
   }
 
   if (node->kind == ND_LVAR) {
-    printf("%c", 'a' + node->offset);
+    int offset = node->offset;
+    if (node->offset < 0) {
+      offset = -node->offset - 1 - 32;
+    }
+    printf("%c", 'a' + offset);
     if (node->kind == ND_ASSIGN) {
       print_node(node->lhs);
       printf("=");

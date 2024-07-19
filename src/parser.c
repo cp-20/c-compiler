@@ -66,7 +66,7 @@ Program *program(Token **token) {
   anon_structs_index = 0;
   while ((*token)->kind != TK_EOF) {
     global_local_structs = new_vector();
-    Function *func = function(token);
+    Function *func = global_decl(token);
     if (func == NULL) continue;
     vec_push_last(code, func);
     func->structs = global_local_structs;
@@ -79,8 +79,8 @@ Program *program(Token **token) {
 
 static vector *global_locals;
 
-Function *function(Token **token) {
-  print_debug_token("function", token);
+Function *global_decl(Token **token) {
+  print_debug_token("global_decl", token);
 
   Variable *return_type = type(token);
   if (return_type != NULL) {
@@ -221,10 +221,10 @@ Node *stmt(Token **token) {
   return node;
 }
 
-Node *expr(Token **token) { return declaration(token); }
+Node *expr(Token **token) { return local_decl(token); }
 
-Node *declaration(Token **token) {
-  print_debug_token("declaration", token);
+Node *local_decl(Token **token) {
+  print_debug_token("local_decl", token);
 
   Variable *var_type = type(token);
   if (var_type == NULL) return logical(token);

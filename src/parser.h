@@ -33,10 +33,10 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 Node *new_node_num(int val);
 
 Program *program(Token **token);
-Function *function(Token **token);
+Function *global_decl(Token **token);
 Node *stmt(Token **token);
 Node *expr(Token **token);
-Node *declaration(Token **token);
+Node *local_decl(Token **token);
 Node *logical(Token **token);
 Node *assign(Token **token);
 Node *equality(Token **token);

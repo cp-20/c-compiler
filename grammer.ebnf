@@ -1,5 +1,5 @@
-program        = function*
-function       = type ident "(" type ident ("," type ident)* ")" "{" stmt* "}"
+program        = global_decl*
+global_decl    = type ident "(" type ident ("," type ident)* ")" "{" stmt* "}"
                | struct_decl ";"
 stmt           = expr ";"
                | "{" stmt* "}"
@@ -7,8 +7,8 @@ stmt           = expr ";"
                | "while" "(" expr ")" stmt
                | "for" "(" expr? ";" expr? ";" expr? ")" stmt
                | "return" expr ";"
-expr           = logical
-declaration    = type ident ("=" logical)? ("," ident ("=" logical)? )*
+expr           = local_decl
+local_decl     = type ident ("=" logical)? ("," ident ("=" logical)? )*
                | type ident "[" num "]" ("=" "{" (logical ("," logical)*)? "}")?
                | type ident "[" "]" ("=" "{" (logical ("," logical)*)? "}")?
                | struct_decl ("=" "{" (logical ("," logical)*)? "}")?

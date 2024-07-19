@@ -6,7 +6,7 @@
 
 #include "color.h"
 
-bool f_debug = false;
+bool f_debug;
 
 void print_debug(char* fmt, ...) {
   if (!f_debug) return;

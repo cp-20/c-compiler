@@ -15,6 +15,7 @@ int main(int argc, char** argv) {
   }
 
   char* input;
+  f_debug = false;
   for (int i = 1; i < argc; i++) {
     input = argv[i];
     if (memcmp(input, "--debug", 7) == 0) {

@@ -239,6 +239,9 @@ assert "int main() { print(func(3, 5)); } int func(int a, int b) { return a + b;
 assert "int main() { print(func(add1(3), sub1(5))); } int func(int a, int b) { return a * b; } int add1(int a) { return a + 1; } int sub1(int a) { return a - 1; }" "16"
 assert "int main() { print(fib(10)); } int fib(int n) { if (n <= 1) return n; return fib(n - 1) + fib(n - 2); }" "55"
 
+describe "再帰関数"
+assert "int fib(int n) { if (n == 0) return 0; if (n == 1) return 1; return fib(n - 1) + fib(n - 2); } int main() { print(fib(10)); }" "55"
+
 describe "ポインタ"
 assert "int main() { int a = 3; int *b = &a; print(*b); }" "3"
 assert "int main() { int a = 3; int *b = &a; *b = 5; print(a); }" "5"

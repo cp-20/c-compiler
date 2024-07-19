@@ -103,6 +103,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     return code;
   } else if (node->kind == ND_LVAR) {
     Variable* var = get_variable(locals_r, node->offset);
+    print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_LVAR] " COL_RESET
+                         "generate var");
+    if (var->value != NULL) {
+      merge_code(code, generate_node(new_node_num(*var->value), stack, locals_r,
+                                     rctx));
+      return code;
+    }
     if (var->type == TYPE_ARRAY) {
       int r_var = r_register(rctx);
       push_code(code,
@@ -680,6 +687,7 @@ void generate(Program* code) {
     globals[i] = var->var;
     print_debug(COL_BLUE "[generator]" COL_RESET " code->globals[%d] = %.*s", i,
                 var->len, var->name);
+    if (var->var->value != NULL) continue;
     generate_global(var);
   }
 

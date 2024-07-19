@@ -157,6 +157,13 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // enum
+    if (strncmp(p, "enum", 4) == 0 && !is_alnum(p[4])) {
+      cur = new_token(TK_ENUM, cur, p);
+      p += 4;
+      continue;
+    }
+
     // 識別子
     if (is_alnum(*p)) {
       char *start = p;

@@ -282,6 +282,9 @@ describe "グローバル変数"
 assert "int a; int main() { a = 3; print(a); }" "3"
 assert "int a; void func() { a = 5; } int main() { func(); print(a); }" "5"
 
+describe "enum"
+assert "enum { A, B, C }; int main() { print(A); print(B); print(C); }" "0 1 2"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

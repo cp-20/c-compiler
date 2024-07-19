@@ -24,6 +24,7 @@ struct Variable {
   Variable* ptr_to;  // 参照先
   vector* fields;    // 構造体のフィールド
   int array_size;    // 配列の要素数
+  int* value;        // 定数の値
 };
 
 Variable* new_variable(int reg, Type type, Variable* ptr_to, int array_size);

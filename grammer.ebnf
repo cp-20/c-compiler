@@ -2,6 +2,7 @@ program        = global_decl*
 global_decl    = type ident "(" type ident ("," type ident)* ")" "{" stmt* "}"
                | struct_decl ";"
                | type ident ";"
+               | "enum" "{" ( ident "," )* "}" ";"
 stmt           = expr ";"
                | "{" stmt* "}"
                | "if" "(" expr ")" stmt ("else" stmt)?

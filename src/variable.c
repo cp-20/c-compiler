@@ -35,10 +35,18 @@ Variable* get_last_variable(vector* stack) { return vec_last(stack); }
 
 char* get_variable_type_str(Variable* var) {
   switch (var->type) {
+    case TYPE_VOID:
+      return "void";
     case TYPE_I32: {
       return "i32";
     }
     case TYPE_PTR: {
+      Variable* p = var;
+      while (p != NULL) {
+        p = p->ptr_to;
+        if (p->type == TYPE_VOID) return "ptr";
+        if (p->type != TYPE_PTR) break;
+      }
       char* type = calloc(1, 256);
       sprintf(type, "%s*", get_variable_type_str(var->ptr_to));
       return type;
@@ -55,6 +63,10 @@ char* get_variable_type_str(Variable* var) {
       return type;
     }
   }
+}
+
+char* get_ptr_variable_type_str(Variable* var) {
+  return get_variable_type_str(new_variable(-1, TYPE_PTR, var, -1));
 }
 
 int get_variable_size(Variable* var) {
@@ -78,6 +90,8 @@ int get_variable_size(Variable* var) {
   switch (var->type) {
     case TYPE_I32:
       return 4;
+    case TYPE_VOID:
+      error("void型の変数は使えません");
     default:
       return 0;
   }

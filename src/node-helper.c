@@ -9,6 +9,10 @@
 #include "vector.h"
 
 Variable* get_node_type(Node* node, vector* locals) {
+  if (node->cast != NULL) {
+    return node->cast;
+  }
+
   switch (node->kind) {
     case ND_ADD:
     case ND_SUB:

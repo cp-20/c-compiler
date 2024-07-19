@@ -25,19 +25,9 @@ int main(int argc, char** argv) {
   // エラー出力の初期化
   init_error(input);
 
-  // トークナイズしてパースする
-  print_debug("START tokenize");
   Token* token = tokenize(input);
-  print_debug("END tokenize");
-
-  print_debug("START parse");
   Program* code = parse(token);
-  print_debug("END parse");
-
-  // コード生成
-  print_debug("START generate");
   generate(code);
-  print_debug("END generate");
 
   return 0;
 }

@@ -28,15 +28,16 @@ struct Call {
 // 抽象構文木のノードの型
 typedef struct Node Node;
 struct Node {
-  Node *lhs;      // 左辺
-  Node *rhs;      // 右辺
-  Node *extra;    // 追加のノード
-  Node *extra2;   // 追加のノード
-  Call *call;     // kindがND_CALLのときのみ使う
-  vector *stmts;  // 後に続くstatementのリスト
-  int val;        // kindがND_NUMの場合のみ使う
-  int offset;     // kindがND_LVARの場合のみ使う
-  NodeKind kind;  // ノードの型
+  Node *lhs;       // 左辺
+  Node *rhs;       // 右辺
+  Node *extra;     // 追加のノード
+  Node *extra2;    // 追加のノード
+  Call *call;      // kindがND_CALLのときのみ使う
+  vector *stmts;   // 後に続くstatementのリスト
+  Variable *cast;  // キャストする型 (キャストの時のみ)
+  int val;         // kindがND_NUMの場合のみ使う
+  int offset;      // kindがND_LVARの場合のみ使う
+  NodeKind kind;   // ノードの型
 };
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs);

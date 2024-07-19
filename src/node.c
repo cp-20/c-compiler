@@ -23,6 +23,10 @@ Node *new_node_num(int val) {
 void print_node(Node *node) {
   if (node == NULL) return;
 
+  if (node->cast != NULL) {
+    printf("(%s)", get_variable_type_str(node->cast));
+  }
+
   if (node->kind == ND_NUM) {
     printf("%d", node->val);
     return;

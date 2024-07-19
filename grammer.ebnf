@@ -29,6 +29,7 @@ unary          = "sizeof" (unary | type)
                | "*"* primary
 primary        = num
                | "(" expr ")" primary_access*
+               | "(" type ")" primary
                | ident ("(" ident ("," ident)* ")")? primary_access*
 primary_access = "[" logical "]"
                | "." ident

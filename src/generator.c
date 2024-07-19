@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "code.h"
+#include "color.h"
 #include "debug.h"
 #include "error.h"
 #include "llvm.h"
@@ -25,10 +26,11 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
       return NULL;
     }
     char* rhs_type = get_variable_type_str(lvar_val);
+    char* rhs_ptype = get_ptr_variable_type_str(lvar_val);
     int size = get_variable_size(lvar_val);
     int r_ptr_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_ptr_val,
-              rhs_type, rhs_type, lvar_val->reg, size);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_ptr_val,
+              rhs_type, rhs_ptype, lvar_val->reg, size);
     Variable* lvar = with_reg(lvar_val->ptr_to, r_ptr_val);
     return lvar;
   }
@@ -37,10 +39,11 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
     Variable* lvar_val = pop_variable(stack);
     char* type = get_variable_type_str(lvar_val);
+    char* ptype = get_ptr_variable_type_str(lvar_val);
     int r_field = r_register(rctx);
     push_code(code,
-              "  %%%d = getelementptr inbounds %s, %s* %%%d, i32 0, i32 %d\n",
-              r_field, type, type, lvar_val->reg, node->rhs->val);
+              "  %%%d = getelementptr inbounds %s, %s %%%d, i32 0, i32 %d\n",
+              r_field, type, ptype, lvar_val->reg, node->rhs->val);
     LVar* field = vec_at(lvar_val->fields, node->rhs->val);
     Variable* field_var = with_reg(field->var, r_field);
     return field_var;
@@ -50,7 +53,18 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
   return NULL;
 }
 
+void push_variable_with_cast_if_needed(vector* stack, Variable* var,
+                                       Variable* cast) {
+  if (cast != NULL) {
+    push_variable(stack, with_reg(cast, var->reg));
+  } else {
+    push_variable(stack, var);
+  }
+}
+
 Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
+  print_debug(COL_BLUE "[generator]" COL_RESET " generate_node %d", node->kind);
+
   Code* code = init_code();
 
   if (node->kind == ND_NUM) {
@@ -58,17 +72,24 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     int r_num = r_register(rctx);
     push_code(code, "  %%%d = alloca i32, align 4\n", r_num);
     push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val, r_num);
-    push_variable(stack, new_variable(r_num, TYPE_I32, NULL, 0));
+    if (node->cast != NULL) {
+      push_variable_with_cast_if_needed(stack, with_reg(node->cast, r_num),
+                                        node->cast);
+    } else {
+      push_variable_with_cast_if_needed(
+          stack, new_variable(r_num, TYPE_I32, NULL, 0), node->cast);
+    }
     return code;
   } else if (node->kind == ND_RETURN) {
     // returnの場合は値を計算して返す
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
     Variable* val = get_last_variable(stack);
     char* val_type = get_variable_type_str(val);
+    char* val_ptype = get_ptr_variable_type_str(val);
     int val_size = get_variable_size(val);
     int r_result_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_result_val,
-              val_type, val_type, val->reg, val_size);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_result_val,
+              val_type, val_ptype, val->reg, val_size);
     push_code(code, "  ret %s %%%d\n", val_type, r_result_val);
     // なぜかよくわからないけどレジスタを1個空けると上手く行く
     r_register(rctx);
@@ -81,15 +102,10 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       push_code(code,
                 "  %%%d = getelementptr inbounds %s, ptr %%%d, i64 0, i64 0\n",
                 r_var, get_variable_type_str(var), var->reg);
-      // int r_ptr = r_register(rctx);
-      // char* ptr_to_type = get_variable_type_str(var->ptr_to);
-      // push_code(code, "  %%%d = alloca %s, align 8\n", r_ptr, ptr_to_type);
-      // push_code(code, "  store %s* %%%d, %s** %%%d, align 8\n", ptr_to_type,
-      //           r_var, ptr_to_type, r_ptr);
-      // push_variable(stack, new_variable(r_ptr, TYPE_PTR, var->ptr_to, 0));
-      push_variable(stack, new_variable(r_var, TYPE_PTR, var->ptr_to, 0));
+      push_variable_with_cast_if_needed(
+          stack, new_variable(r_var, TYPE_PTR, var->ptr_to, 0), node->cast);
     } else {
-      push_variable(stack, var);
+      push_variable_with_cast_if_needed(stack, var, node->cast);
     }
     return code;
   } else if (node->kind == ND_ASSIGN) {
@@ -101,18 +117,21 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     }
     merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
 
-    Variable* rhs = get_last_variable(stack);
+    Variable* rhs = pop_variable(stack);
     if (!is_same_type(lvar, rhs)) {
       error("代入の左辺値と右辺値の型が一致しません\n左辺: %s, 右辺: %s",
             get_variable_type_str(lvar), get_variable_type_str(rhs));
     }
     char* type = get_variable_type_str(rhs);
+    char* ptype = get_ptr_variable_type_str(rhs);
     int size = get_variable_size(rhs);
     int r_right_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_right_val, type,
-              type, rhs->reg, size);
-    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", type, r_right_val,
-              type, lvar->reg, size);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val, type,
+              ptype, rhs->reg, size);
+    push_code(code, "  store %s %%%d, %s %%%d, align %d\n", type, r_right_val,
+              ptype, lvar->reg, size);
+    push_variable_with_cast_if_needed(stack, with_reg(rhs, lvar->reg),
+                                      node->cast);
     return code;
   } else if (node->kind == ND_IF) {
     // ifの場合は条件式を計算して条件によって分岐する
@@ -121,10 +140,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
 
     Variable* cond = pop_variable(stack);
     char* cond_type = get_variable_type_str(cond);
+    char* cond_ptype = get_ptr_variable_type_str(cond);
     int cond_size = get_variable_size(cond);
     int r_cond_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_cond_val,
-              cond_type, cond_type, cond->reg, cond_size);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
+              cond_type, cond_ptype, cond->reg, cond_size);
     int r_cond_bool = r_register(rctx);
     push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
               r_cond_val);
@@ -166,10 +186,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
     Variable* cond = pop_variable(stack);
     char* cond_type = get_variable_type_str(cond);
+    char* cond_ptype = get_ptr_variable_type_str(cond);
     int cond_size = get_variable_size(cond);
     int r_cond_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_cond_val,
-              cond_type, cond_type, cond->reg, cond_size);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
+              cond_type, cond_ptype, cond->reg, cond_size);
 
     int r_cond_bool = r_register(rctx);
     push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
@@ -201,10 +222,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
     Variable* cond = pop_variable(stack);
     char* cond_type = get_variable_type_str(cond);
+    char* cond_ptype = get_ptr_variable_type_str(cond);
     int cond_size = get_variable_size(cond);
     int r_cond_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_cond_val,
-              cond_type, cond_type, cond->reg, cond_size);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
+              cond_type, cond_ptype, cond->reg, cond_size);
 
     int r_cond_bool = r_register(rctx);
     push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
@@ -235,8 +257,14 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     // 関数呼び出しの場合は関数を呼び出す
 
     // 引数を計算する
+    print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_CALL] " COL_RESET
+                         "node->call->args->size = %d",
+                node->call->args->size);
     for (int i = 0; i < node->call->args->size; i++) {
       Node* arg = vec_at(node->call->args, i);
+      print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_CALL] " COL_RESET
+                           "node->call->args[%d] = %d",
+                  i, arg->kind);
       merge_code(code, generate_node(arg, stack, locals_r, rctx));
     }
     Variable args[node->call->args->size];
@@ -244,10 +272,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       int j = node->call->args->size - i - 1;
       Variable* arg = pop_variable(stack);
       char* arg_type = get_variable_type_str(arg);
+      char* arg_ptype = get_ptr_variable_type_str(arg);
       int arg_size = get_variable_size(arg);
       int r_arg_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_arg_val,
-                arg_type, arg_type, arg->reg, arg_size);
+      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_arg_val,
+                arg_type, arg_ptype, arg->reg, arg_size);
       args[j].reg = r_arg_val;
       args[j].type = arg->type;
       args[j].ptr_to = arg->ptr_to;
@@ -258,6 +287,10 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     int r_result_val = r_register(rctx);
     // とりあえず関数の戻り値はi32固定
     char* return_type = get_variable_type_str(node->call->ret);
+    if (node->cast != NULL) {
+      return_type = get_variable_type_str(node->cast);
+    }
+    char* return_ptype = get_ptr_variable_type_str(node->call->ret);
     push_code(code, "  %%%d = call %s @%.*s(", r_result_val, return_type,
               node->call->len, node->call->name);
     for (int i = 0; i < node->call->args->size; i++) {
@@ -270,25 +303,28 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     // 結果をスタックに積む
     int r_result = r_register(rctx);
     push_code(code, "  %%%d = alloca %s, align 4\n", r_result, return_type);
-    push_code(code, "  store %s %%%d, %s* %%%d, align 4\n", return_type,
-              r_result_val, return_type, r_result);
-    push_variable(stack, with_reg(node->call->ret, r_result));
+    push_code(code, "  store %s %%%d, %s %%%d, align 4\n", return_type,
+              r_result_val, return_ptype, r_result);
+    push_variable_with_cast_if_needed(
+        stack, with_reg(node->call->ret, r_result), node->cast);
 
     return code;
   } else if (node->kind == ND_INCR || node->kind == ND_DECR) {
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
     Variable* var = pop_variable(stack);
     char* var_type = get_variable_type_str(var);
+    char* var_ptype = get_ptr_variable_type_str(var);
     int var_size = get_variable_size(var);
     int r_result = r_register(rctx);
     push_code(code, "  %%%d = alloca %s, align %d\n", r_result, var_type,
               var_size);
     int r_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_val, var_type,
-              var_type, var->reg, var_size);
-    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", var_type, r_val,
-              var_type, r_result, var_size);
-    push_variable(stack, with_reg(var, r_result));
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_val, var_type,
+              var_ptype, var->reg, var_size);
+    push_code(code, "  store %s %%%d, %s %%%d, align %d\n", var_type, r_val,
+              var_ptype, r_result, var_size);
+    push_variable_with_cast_if_needed(stack, with_reg(var, r_result),
+                                      node->cast);
 
     NodeKind op_type = node->kind == ND_INCR ? ND_ADD : ND_SUB;
     Node* op_node = new_node(ND_ASSIGN, node->lhs,
@@ -299,12 +335,14 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   } else if (node->kind == ND_REF) {
     // 参照の場合は左辺値のポインタをスタックに積む
     Variable* lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
-    char* lvar_type = get_variable_type_str(lvar);
     int r_result = r_register(rctx);
-    push_code(code, "  %%%d = alloca %s*, align 8\n", r_result, lvar_type);
-    push_code(code, "  store %s* %%%d, %s** %%%d, align 8\n", lvar_type,
-              lvar->reg, lvar_type, r_result);
-    push_variable(stack, new_variable(r_result, TYPE_PTR, lvar, 0));
+    Variable* lvar_ptr = new_variable(r_result, TYPE_PTR, lvar, -1);
+    char* lvar_ptr_type = get_variable_type_str(lvar_ptr);
+    char* lvar_ptr_ptype = get_ptr_variable_type_str(lvar_ptr);
+    push_code(code, "  %%%d = alloca %s, align 8\n", r_result, lvar_ptr_type);
+    push_code(code, "  store %s %%%d, %s %%%d, align 8\n", lvar_ptr_type,
+              lvar->reg, lvar_ptr_ptype, r_result);
+    push_variable_with_cast_if_needed(stack, lvar_ptr, node->cast);
     return code;
   } else if (node->kind == ND_DEREF) {
     // 間接参照の場合はポインタの値をスタックに積む
@@ -314,23 +352,26 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       error("間接参照演算子の右辺値がポインタではありません");
     }
     char* rhs_type = get_variable_type_str(rhs);
+    char* rhs_ptype = get_ptr_variable_type_str(rhs);
     int r_ptr_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s* %%%d, align 8\n", r_ptr_val,
-              rhs_type, rhs_type, rhs->reg);
-    push_variable(stack, with_reg(rhs->ptr_to, r_ptr_val));
+    push_code(code, "  %%%d = load %s, %s %%%d, align 8\n", r_ptr_val, rhs_type,
+              rhs_ptype, rhs->reg);
+    push_variable_with_cast_if_needed(stack, with_reg(rhs->ptr_to, r_ptr_val),
+                                      node->cast);
     return code;
   } else if (node->kind == ND_ACCESS) {
     // フィールドアクセスの場合は構造体の値をスタックに積む
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
     Variable* lvar = pop_variable(stack);
     char* type = get_variable_type_str(lvar);
+    char* ptype = get_ptr_variable_type_str(lvar);
     int r_field = r_register(rctx);
     push_code(code,
-              "  %%%d = getelementptr inbounds %s, %s* %%%d, i32 0, i32 %d\n",
-              r_field, type, type, lvar->reg, node->rhs->val);
+              "  %%%d = getelementptr inbounds %s, %s %%%d, i32 0, i32 %d\n",
+              r_field, type, ptype, lvar->reg, node->rhs->val);
     LVar* field = vec_at(lvar->fields, node->rhs->val);
     Variable* field_var = with_reg(field->var, r_field);
-    push_variable(stack, field_var);
+    push_variable_with_cast_if_needed(stack, field_var, node->cast);
     return code;
   }
 
@@ -344,17 +385,20 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   Variable* result_val = get_calc_result_type(node->kind, lval, rval);
 
   char* lval_type = get_variable_type_str(lval);
+  char* lval_ptype = get_ptr_variable_type_str(lval);
   int lval_size = get_variable_size(lval);
   char* rval_type = get_variable_type_str(rval);
+  char* rval_ptype = get_ptr_variable_type_str(rval);
   int rval_size = get_variable_size(rval);
   char* val_type = get_variable_type_str(result_val);
+  char* val_ptype = get_ptr_variable_type_str(result_val);
   int val_size = get_variable_size(result_val);
   int r_left_val = r_register(rctx);
   int r_right_val = r_register(rctx);
-  push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_left_val,
-            lval_type, lval_type, lval->reg, lval_size);
-  push_code(code, "  %%%d = load %s, %s* %%%d, align %d\n", r_right_val,
-            rval_type, rval_type, rval->reg, rval_size);
+  push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_left_val,
+            lval_type, lval_ptype, lval->reg, lval_size);
+  push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val,
+            rval_type, rval_ptype, rval->reg, rval_size);
 
   if (is_pointer_like(result_val)) {
     int r_result_val = r_register(rctx);
@@ -398,10 +442,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     int r_result = r_register(rctx);
     push_code(code, "  %%%d = alloca %s, align %d\n", r_result, val_type,
               val_size);
-    push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", val_type,
-              r_result_val, val_type, r_result, val_size);
+    push_code(code, "  store %s %%%d, %s %%%d, align %d\n", val_type,
+              r_result_val, val_ptype, r_result, val_size);
 
-    push_variable(stack, with_reg(result_val, r_result));
+    push_variable_with_cast_if_needed(stack, with_reg(result_val, r_result),
+                                      node->cast);
     return code;
   }
 
@@ -469,9 +514,10 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   int r_result = r_register(rctx);
   push_code(code, "  %%%d = alloca %s, align %d\n", r_result, val_type,
             val_size);
-  push_code(code, "  store %s %%%d, %s* %%%d, align %d\n", val_type,
-            r_result_val, val_type, r_result, val_size);
-  push_variable(stack, with_reg(result_val, r_result));
+  push_code(code, "  store %s %%%d, %s %%%d, align %d\n", val_type,
+            r_result_val, val_ptype, r_result, val_size);
+  push_variable_with_cast_if_needed(stack, with_reg(result_val, r_result),
+                                    node->cast);
 
   return code;
 }
@@ -493,17 +539,24 @@ void generate_func(Function* func) {
   rctx rctx = r_init();
 
   // 関数のローカル構造体の宣言
+  print_debug(COL_BLUE "[generator]" COL_RESET " func->structs->size = %d",
+              func->structs->size);
   for (int i = 0; i < func->structs->size; i++) {
     Variable* var = vec_at(func->structs, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " func->structs[%d] = %.*s", i,
+                var->len, var->name);
     generate_struct(var);
   }
 
-  printf("define dso_local i32 @%.*s(", func->len, func->name);
+  char* ret_type = get_variable_type_str(func->ret);
+  printf("define dso_local %s @%.*s(", ret_type, func->len, func->name);
   int args[func->argc];
   for (int i = 0; i < func->argc; i++) {
     if (i != 0) printf(", ");
+    LVar* arg = vec_at(func->locals, i);
+    char* type = get_variable_type_str(arg->var);
     int r_arg = r_register(rctx);
-    printf("i32 noundef %%%d", r_arg);
+    printf("%s noundef %%%d", type, r_arg);
     args[i] = r_arg;
   }
   printf(") #0 {\n");
@@ -513,15 +566,16 @@ void generate_func(Function* func) {
   // ローカル変数の初期化
   Variable** locals_r = calloc(func->locals->size, sizeof(Variable*));
   for (int i = 0; i < func->argc; i++) {
-    LVar* var = vec_at(func->locals, i);
-    char* var_type = get_variable_type_str(var->var);
-    int var_size = get_variable_size(var->var);
+    LVar* arg = vec_at(func->locals, i);
+    char* var_type = get_variable_type_str(arg->var);
+    char* var_ptype = get_ptr_variable_type_str(arg->var);
+    int var_size = get_variable_size(arg->var);
     int r = r_register(rctx);
-    printf("  ; %.*s (arg)\n", var->len, var->name);
+    printf("  ; %.*s (arg)\n", arg->len, arg->name);
     printf("  %%%d = alloca %s, align %d\n", r, var_type, var_size);
-    printf("  store %s %%%d, %s* %%%d, align %d\n", var_type, args[i], var_type,
+    printf("  store %s %%%d, %s %%%d, align %d\n", var_type, args[i], var_ptype,
            r, var_size);
-    locals_r[i] = with_reg(var->var, r);
+    locals_r[i] = with_reg(arg->var, r);
   }
   for (int i = func->argc; i < func->locals->size; i++) {
     LVar* lvar = vec_at(func->locals, i);
@@ -544,7 +598,9 @@ void generate_func(Function* func) {
     printf("%s", result->code);
   }
 
-  printf("  ret i32 0\n");
+  if (memcmp(func->name, "main", 4) == 0) {
+    printf("  ret i32 0\n");
+  }
 
   printf("}\n");
 
@@ -580,14 +636,22 @@ void generate_print() {
 void generate(Program* code) {
   generate_header();
 
+  print_debug(COL_BLUE "[generator]" COL_RESET " code->structs->size = %d",
+              code->structs->size);
   for (int i = 0; i < code->structs->size; i++) {
     Variable* strcut_val = vec_at(code->structs, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " code->structs[%d] = %.*s", i,
+                strcut_val->len, strcut_val->name);
     generate_struct(strcut_val);
   }
 
   // コード生成
+  print_debug(COL_BLUE "[generator]" COL_RESET " code->functions->size = %d",
+              code->functions->size);
   for (int i = 0; i < code->functions->size; i++) {
     Function* func = vec_at(code->functions, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " code->functions[%d] = %.*s",
+                i, func->len, func->name);
     generate_func(func);
   }
 

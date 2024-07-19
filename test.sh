@@ -273,6 +273,11 @@ assert "struct st { int a; int *b; }; int main() { struct st x; *x.b = 5; print(
 assert "struct st { int a; int *b; }; int main() { struct st *x = calloc(1, sizeof(struct st)); x->a = 10; print(x->a); }" "10"
 assert "struct st { int a; int *b; }; int main() { struct st *x = calloc(1, sizeof(struct st)); x->b = malloc(sizeof(int)); *(x->b) = 5; print(*(x->b)); }" "5"
 
+describe "型キャスト"
+assert "void *func(void *a) { return a; } int main() { int x = 7; print(*(int*)func(&x)); }" "7"
+assert "void *func(void *a) { return a; } int main() { int x = 7; void *a = func(&x); print(*(int*)a); }" "7"
+assert "void *func(void *a) { return a; } int main() { int x = 7; int *a = (int*)func(&x); print(*a); }" "7"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

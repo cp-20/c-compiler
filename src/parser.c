@@ -460,8 +460,14 @@ Node *unary(Token **token) {
 Node *primary(Token **token) {
   print_debug_token("primary", token);
 
-  // 次のトークンが"("なら、"(" expr ")"のはず
   if (consume(token, "(")) {
+    Variable *cast_type = type(token);
+    if (cast_type != NULL) {
+      expect(token, ")");
+      Node *node = primary(token);
+      node->cast = cast_type;
+      return node;
+    }
     Node *node = expr(token);
     expect(token, ")");
 
@@ -498,7 +504,6 @@ Node *primary(Token **token) {
     return node;
   }
 
-  // そうでなければ数値のはず
   return new_node_num(expect_number(token));
 }
 
@@ -611,10 +616,16 @@ Variable *parse_struct(Token **token, bool is_declare) {
 Variable *type(Token **token) {
   print_debug_token("type", token);
 
-  if (consume_reserved(token, TK_INT)) {
+  int type = -1;
+  if (consume_reserved(token, TK_VOID)) {
+    type = TYPE_VOID;
+  } else if (consume_reserved(token, TK_INT)) {
+    type = TYPE_I32;
+  }
+  if (type != -1) {
     int ref_nest = 0;
     while (consume(token, "*")) ref_nest++;
-    Variable *var = new_variable(-1, TYPE_I32, NULL, 0);
+    Variable *var = new_variable(-1, type, NULL, 0);
     for (int nest = ref_nest; nest > 0; nest--) {
       Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
       var = ptr;

@@ -10,12 +10,16 @@
 Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
                    rctx rctx);
 
+void push_variable_with_cast_if_needed(vector* stack, Variable* var,
+                                       Variable* cast);
+
 Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx);
 
-void generate_func(Function* func);
+Code* generate_struct(Variable* var);
+Code* generate_global(LVar* var);
+Code* generate_string(Token* tok, int index);
+Code* generate_func(Function* func);
+Code* generate_header();
+Code* generate_lib_functions();
 
-void generate_header(void);
-
-void generate_print(void);
-
-void generate(Program* code);
+Code* generate(Program* program);

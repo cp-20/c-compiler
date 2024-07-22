@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 extern char *user_input;
+extern char *filename;
 
 void init_error(char *p);
 

@@ -555,32 +555,40 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   return code;
 }
 
-void generate_struct(Variable* struct_val) {
-  printf("%%struct.%.*s = type { ", struct_val->len, struct_val->name);
+Code* generate_struct(Variable* struct_val) {
+  Code* code = init_code();
+  push_code(code, "%%struct.%.*s = type { ", struct_val->len, struct_val->name);
   for (int i = 0; i < struct_val->fields->size; i++) {
-    if (i != 0) printf(", ");
+    if (i != 0) push_code(code, ", ");
     LVar* field = vec_at(struct_val->fields, i);
     char* field_type = get_variable_type_str(field->var);
-    printf("%s", field_type);
+    push_code(code, "%s", field_type);
   }
-  printf(" }\n");
+  push_code(code, " }\n");
+  return code;
 }
 
-void generate_global(LVar* var) {
+Code* generate_global(LVar* var) {
+  Code* code = init_code();
   char* type = get_variable_type_str(var->var);
   int size = get_variable_size(var->var);
-  printf("@%.*s = dso_local global %s zeroinitializer, align %d\n", var->len,
-         var->name, type, size);
+  push_code(code, "@%.*s = dso_local global %s zeroinitializer, align %d\n",
+            var->len, var->name, type, size);
+  return code;
 }
 
-void generate_string(Token* tok, int index) {
-  printf(
-      "@.str.%d = private unnamed_addr constant [%d x i8] c\"%.*s\\00\", "
-      "align 1\n",
-      index, tok->len + 1, tok->len, tok->str);
+Code* generate_string(Token* tok, int index) {
+  Code* code = init_code();
+  push_code(code,
+            "@.str.%d = private unnamed_addr constant [%d x i8] c\"%.*s\\00\", "
+            "align 1\n",
+            index, tok->len + 1, tok->len, tok->str);
+  return code;
 }
 
-void generate_func(Function* func) {
+Code* generate_func(Function* func) {
+  Code* code = init_code();
+
   // 初期化処理
   vector* stack = new_vector();
   rctx rctx = r_init();
@@ -592,21 +600,22 @@ void generate_func(Function* func) {
     Variable* var = vec_at(func->structs, i);
     print_debug(COL_BLUE "[generator]" COL_RESET " func->structs[%d] = %.*s", i,
                 var->len, var->name);
-    generate_struct(var);
+    merge_code(code, generate_struct(var));
   }
 
   char* ret_type = get_variable_type_str(func->ret);
-  printf("define dso_local %s @%.*s(", ret_type, func->len, func->name);
+  push_code(code, "define dso_local %s @%.*s(", ret_type, func->len,
+            func->name);
   int args[func->argc];
   for (int i = 0; i < func->argc; i++) {
-    if (i != 0) printf(", ");
+    if (i != 0) push_code(code, ", ");
     LVar* arg = vec_at(func->locals, i);
     char* type = get_variable_type_str(arg->var);
     int r_arg = r_register(rctx);
-    printf("%s noundef %%%d", type, r_arg);
+    push_code(code, "%s noundef %%%d", type, r_arg);
     args[i] = r_arg;
   }
-  printf(") #0 {\n");
+  push_code(code, ") #0 {\n");
 
   r_register(rctx);
 
@@ -618,10 +627,10 @@ void generate_func(Function* func) {
     char* var_ptype = get_ptr_variable_type_str(arg->var);
     int var_size = get_variable_size(arg->var);
     int r = r_register(rctx);
-    printf("  ; %.*s (arg)\n", arg->len, arg->name);
-    printf("  %%%d = alloca %s, align %d\n", r, var_type, var_size);
-    printf("  store %s %%%d, %s %%%d, align %d\n", var_type, args[i], var_ptype,
-           r, var_size);
+    push_code(code, "  ; %.*s (arg)\n", arg->len, arg->name);
+    push_code(code, "  %%%d = alloca %s, align %d\n", r, var_type, var_size);
+    push_code(code, "  store %s %%%d, %s %%%d, align %d\n", var_type, args[i],
+              var_ptype, r, var_size);
     locals_r[i] = with_reg(arg->var, r);
   }
   for (int i = func->argc; i < func->locals->size; i++) {
@@ -629,8 +638,8 @@ void generate_func(Function* func) {
     char* var_type = get_variable_type_str(lvar->var);
     int var_size = get_variable_size(lvar->var);
     int r = r_register(rctx);
-    printf("  ; %.*s (local)\n", lvar->len, lvar->name);
-    printf("  %%%d = alloca %s, align %d\n", r, var_type, var_size);
+    push_code(code, "  ; %.*s (local)\n", lvar->len, lvar->name);
+    push_code(code, "  %%%d = alloca %s, align %d\n", r, var_type, var_size);
     locals_r[i] = with_reg(lvar->var, r);
   }
 
@@ -638,96 +647,104 @@ void generate_func(Function* func) {
   for (int i = 0; i < func->body->size; i++) {
     Node* node = vec_at(func->body, i);
     if (node == NULL) continue;
-    printf("  ; ");
-    print_node(node);
-    printf("\n");
-    Code* result = generate_node(node, stack, locals_r, rctx);
-    printf("%s", result->code);
+    push_code(code, "  ; ");
+    merge_code(code, print_node(node));
+    push_code(code, "\n");
+    merge_code(code, generate_node(node, stack, locals_r, rctx));
   }
 
   if (memcmp(func->name, "main", 4) == 0) {
-    printf("  ret i32 0\n");
+    push_code(code, "  ret i32 0\n");
   }
   if (func->ret->type == TYPE_VOID) {
-    printf("  ret void\n");
+    push_code(code, "  ret void\n");
   }
 
-  printf("}\n");
+  push_code(code, "}\n");
 
   // 後処理
   vec_free(stack);
   r_free(rctx);
+
+  return code;
 }
 
-void generate_header() {
-  printf("source_filename = \"calc.c\"\n");
-  printf(
+Code* generate_header() {
+  Code* code = init_code();
+  push_code(
+      code,
+      "source_filename = \"calc.c\"\n"
       "target datalayout = "
       "\"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-"
-      "S128\"\n");
-  printf("target triple = \"x86_64-pc-linux-gnu\"\n");
-  printf("\n");
+      "S128\"\n"
+      "target triple = \"x86_64-pc-linux-gnu\"\n"
+      "\n");
+  return code;
 }
 
-void generate_print() {
-  printf("declare i32 @print(i32 noundef, ...) #0\n");
-  printf("declare i32 @scan() #1\n");
-  printf(
-      "declare i32 @alloc4(i32** noundef, i32 noundef, i32 noundef, i32 "
-      "noundef, i32 noundef) #2\n");
-  printf(
-      "; Function Attrs: nounwind allocsize(0,1)\n"
-      "declare noalias ptr @calloc(i64 noundef, i64 noundef) #3\n");
-  printf(
-      "; Function Attrs: nounwind allocsize(0,1)\n"
-      "declare noalias ptr @malloc(i64 noundef, i64 noundef) #4\n");
-  printf("declare i32 @printf(ptr noundef, ...) #5\n");
+Code* generate_lib_functions() {
+  Code* code = init_code();
+  push_code(code,
+            "declare i32 @print(i32 noundef, ...) #0\n"
+            "declare i32 @scan() #1\n"
+            "declare i32 @alloc4(i32** noundef, i32 noundef, i32 noundef, i32 "
+            "noundef, i32 noundef) #2\n"
+            "; Function Attrs: nounwind allocsize(0,1)\n"
+            "declare noalias ptr @calloc(i64 noundef, i64 noundef) #3\n"
+            "; Function Attrs: nounwind allocsize(0,1)\n"
+            "declare noalias ptr @malloc(i64 noundef, i64 noundef) #4\n"
+            "declare i32 @printf(ptr noundef, ...) #5\n");
+  return code;
 }
 
-void generate(Program* code) {
-  generate_header();
+Code* generate(Program* program) {
+  Code* code = init_code();
+  merge_code(code, generate_header());
 
-  print_debug(COL_BLUE "[generator]" COL_RESET " code->structs->size = %d",
-              code->structs->size);
-  for (int i = 0; i < code->structs->size; i++) {
-    Variable* strcut_val = vec_at(code->structs, i);
-    print_debug(COL_BLUE "[generator]" COL_RESET " code->structs[%d] = %.*s", i,
-                strcut_val->len, strcut_val->name);
-    generate_struct(strcut_val);
+  print_debug(COL_BLUE "[generator]" COL_RESET " program->structs->size = %d",
+              program->structs->size);
+  for (int i = 0; i < program->structs->size; i++) {
+    Variable* strcut_val = vec_at(program->structs, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " program->structs[%d] = %.*s",
+                i, strcut_val->len, strcut_val->name);
+    merge_code(code, generate_struct(strcut_val));
   }
 
-  print_debug(COL_BLUE "[generator]" COL_RESET " code->globals->size = %d",
-              code->globals->size);
-  globals = calloc(code->globals->size, sizeof(Variable*));
-  for (int i = 0; i < code->globals->size; i++) {
-    LVar* var = vec_at(code->globals, i);
+  print_debug(COL_BLUE "[generator]" COL_RESET " program->globals->size = %d",
+              program->globals->size);
+  globals = calloc(program->globals->size, sizeof(Variable*));
+  for (int i = 0; i < program->globals->size; i++) {
+    LVar* var = vec_at(program->globals, i);
     globals[i] = var->var;
-    print_debug(COL_BLUE "[generator]" COL_RESET " code->globals[%d] = %.*s", i,
-                var->len, var->name);
+    print_debug(COL_BLUE "[generator]" COL_RESET " program->globals[%d] = %.*s",
+                i, var->len, var->name);
     if (var->var->value != NULL) continue;
-    generate_global(var);
+    merge_code(code, generate_global(var));
   }
 
-  print_debug(COL_BLUE "[generator]" COL_RESET " code->strings->size = %d",
-              code->strings->size);
-  for (int i = 0; i < code->strings->size; i++) {
-    Token* tok = vec_at(code->strings, i);
-    print_debug(COL_BLUE "[generator]" COL_RESET " code->strings[%d] = %.*s", i,
-                tok->len, tok->str);
-    generate_string(tok, i);
+  print_debug(COL_BLUE "[generator]" COL_RESET " program->strings->size = %d",
+              program->strings->size);
+  for (int i = 0; i < program->strings->size; i++) {
+    Token* tok = vec_at(program->strings, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " program->strings[%d] = %.*s",
+                i, tok->len, tok->str);
+    merge_code(code, generate_string(tok, i));
   }
 
   // コード生成
-  print_debug(COL_BLUE "[generator]" COL_RESET " code->functions->size = %d",
-              code->functions->size);
-  for (int i = 0; i < code->functions->size; i++) {
-    Function* func = vec_at(code->functions, i);
-    print_debug(COL_BLUE "[generator]" COL_RESET " code->functions[%d] = %.*s",
+  print_debug(COL_BLUE "[generator]" COL_RESET " program->functions->size = %d",
+              program->functions->size);
+  for (int i = 0; i < program->functions->size; i++) {
+    Function* func = vec_at(program->functions, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET
+                         " program->functions[%d] = %.*s",
                 i, func->len, func->name);
-    generate_func(func);
+    merge_code(code, generate_func(func));
   }
 
-  printf("\n");
+  push_code(code, "\n");
 
-  generate_print();
+  merge_code(code, generate_lib_functions());
+
+  return code;
 }

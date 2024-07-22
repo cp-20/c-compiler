@@ -1,5 +1,6 @@
 #pragma once
 
+#include "code.h"
 #include "node-kind.h"
 #include "variable.h"
 #include "vector.h"
@@ -44,4 +45,4 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 
 Node *new_node_num(int val);
 
-void print_node(Node *node);
+Code *print_node(Node *node);

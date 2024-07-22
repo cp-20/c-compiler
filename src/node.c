@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "code.h"
 #include "variable.h"
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -20,16 +21,17 @@ Node *new_node_num(int val) {
   return node;
 }
 
-void print_node(Node *node) {
-  if (node == NULL) return;
+Code *print_node(Node *node) {
+  Code *code = init_code();
+  if (node == NULL) return code;
 
   if (node->cast != NULL) {
-    printf("(%s)", get_variable_type_str(node->cast));
+    push_code(code, "(%s)", get_variable_type_str(node->cast));
   }
 
   if (node->kind == ND_NUM) {
-    printf("%d", node->val);
-    return;
+    push_code(code, "%d", node->val);
+    return code;
   }
 
   if (node->kind == ND_LVAR) {
@@ -37,140 +39,142 @@ void print_node(Node *node) {
     if (node->offset < 0) {
       offset = -node->offset - 1 - 32;
     }
-    printf("%c", 'a' + offset);
+    push_code(code, "%c", 'a' + offset);
     if (node->kind == ND_ASSIGN) {
-      print_node(node->lhs);
-      printf("=");
-      print_node(node->rhs);
+      merge_code(code, print_node(node->lhs));
+      push_code(code, "=");
+      merge_code(code, print_node(node->rhs));
     }
-    return;
+    return code;
   }
 
   if (node->kind == ND_RETURN) {
-    printf("return ");
-    print_node(node->lhs);
-    return;
+    push_code(code, "return ");
+    merge_code(code, print_node(node->lhs));
+    return code;
   }
 
   if (node->kind == ND_IF) {
-    printf("if (");
-    print_node(node->lhs);
-    printf(") ");
-    print_node(node->rhs);
+    push_code(code, "if (");
+    merge_code(code, print_node(node->lhs));
+    push_code(code, ") ");
+    merge_code(code, print_node(node->rhs));
     if (node->extra) {
-      printf(" else ");
-      print_node(node->extra);
+      push_code(code, " else ");
+      merge_code(code, print_node(node->extra));
     }
-    return;
+    return code;
   }
 
   if (node->kind == ND_WHILE) {
-    printf("while (");
-    print_node(node->lhs);
-    printf(") ");
-    print_node(node->rhs);
-    return;
+    push_code(code, "while (");
+    merge_code(code, print_node(node->lhs));
+    push_code(code, ") ");
+    merge_code(code, print_node(node->rhs));
+    return code;
   }
 
   if (node->kind == ND_FOR) {
-    printf("for (");
+    push_code(code, "for (");
     if (node->lhs) print_node(node->lhs);
-    printf(";");
+    push_code(code, ";");
     if (node->rhs) print_node(node->rhs);
-    printf(";");
+    push_code(code, ";");
     if (node->extra) print_node(node->extra);
-    printf(")");
-    return;
+    push_code(code, ")");
+    return code;
   }
 
   if (node->kind == ND_BLOCK) {
-    printf("{ ");
+    push_code(code, "{ ");
     for (int i = 0; i < node->stmts->size; i++) {
-      print_node(vec_at(node->stmts, i));
-      printf("; ");
+      merge_code(code, print_node(vec_at(node->stmts, i)));
+      push_code(code, "; ");
     }
-    printf("}");
-    return;
+    push_code(code, "}");
+    return code;
   }
 
   if (node->kind == ND_GROUP) {
     for (int i = 0; i < node->stmts->size; i++) {
-      print_node(vec_at(node->stmts, i));
-      printf("; ");
+      merge_code(code, print_node(vec_at(node->stmts, i)));
+      push_code(code, "; ");
     }
-    return;
+    return code;
   }
 
   if (node->kind == ND_CALL) {
-    printf("%.*s(", node->call->len, node->call->name);
+    push_code(code, "%.*s(", node->call->len, node->call->name);
     for (int i = 0; i < node->call->args->size; i++) {
-      if (i > 0) printf(", ");
-      print_node(vec_at(node->call->args, i));
+      if (i > 0) push_code(code, ", ");
+      merge_code(code, print_node(vec_at(node->call->args, i)));
     }
-    printf(")");
-    return;
+    push_code(code, ")");
+    return code;
   }
 
   if (node->kind == ND_INCR) {
-    print_node(node->lhs);
-    printf("++");
-    return;
+    merge_code(code, print_node(node->lhs));
+    push_code(code, "++");
+    return code;
   }
 
   if (node->kind == ND_DECR) {
-    print_node(node->lhs);
-    printf("--");
-    return;
+    merge_code(code, print_node(node->lhs));
+    push_code(code, "--");
+    return code;
   }
 
   if (node->kind == ND_REF) {
-    printf("&");
-    print_node(node->lhs);
-    return;
+    push_code(code, "&");
+    merge_code(code, print_node(node->lhs));
+    return code;
   }
 
   if (node->kind == ND_DEREF) {
-    printf("*");
-    print_node(node->lhs);
-    return;
+    push_code(code, "*");
+    merge_code(code, print_node(node->lhs));
+    return code;
   }
 
   if (node->kind == ND_ACCESS) {
-    print_node(node->lhs);
-    printf(".");
-    print_node(node->rhs);
-    return;
+    merge_code(code, print_node(node->lhs));
+    push_code(code, ".");
+    merge_code(code, print_node(node->rhs));
+    return code;
   }
 
-  printf("(");
-  print_node(node->lhs);
+  push_code(code, "(");
+  merge_code(code, print_node(node->lhs));
   if (node->kind == ND_ADD) {
-    printf("+");
+    push_code(code, "+");
   } else if (node->kind == ND_SUB) {
-    printf("-");
+    push_code(code, "-");
   } else if (node->kind == ND_MUL) {
-    printf("*");
+    push_code(code, "*");
   } else if (node->kind == ND_DIV) {
-    printf("/");
+    push_code(code, "/");
   } else if (node->kind == ND_EQ) {
-    printf("==");
+    push_code(code, "==");
   } else if (node->kind == ND_NE) {
-    printf("!=");
+    push_code(code, "!=");
   } else if (node->kind == ND_LT) {
-    printf("<");
+    push_code(code, "<");
   } else if (node->kind == ND_LE) {
-    printf("<=");
+    push_code(code, "<=");
   } else if (node->kind == ND_GT) {
-    printf(">");
+    push_code(code, ">");
   } else if (node->kind == ND_GE) {
-    printf(">=");
+    push_code(code, ">=");
   } else if (node->kind == ND_ASSIGN) {
-    printf("=");
+    push_code(code, "=");
   } else if (node->kind == ND_AND) {
-    printf("&&");
+    push_code(code, "&&");
   } else if (node->kind == ND_OR) {
-    printf("||");
+    push_code(code, "||");
   }
-  print_node(node->rhs);
-  printf(")");
+  merge_code(code, print_node(node->rhs));
+  push_code(code, ")");
+
+  return code;
 }

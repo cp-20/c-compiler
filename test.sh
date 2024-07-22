@@ -46,10 +46,13 @@ assert() {
   result_file=$(mktemp)
 
   {
+    tmp_src_file="$(mktemp).c"
     tmp_ll_file="$(mktemp).ll"
     clang_output_object="$(mktemp).o"
     clang_output="$(mktemp)"
-    compiler_stderr=$(./dist/1cc "$input" >"$tmp_ll_file" 2>&1)
+
+    echo -e "$input" >"$tmp_src_file"
+    compiler_stderr=$(./dist/1cc "--output" "$tmp_ll_file" "$tmp_src_file" 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
       echo -e "  ❌ Compile (1cc)" >>"$result_file"

@@ -53,5 +53,3 @@ Variable *parse_struct(Token **token, bool name_required);
 Variable *type(Token **token, bool exclude_ptr);
 
 Program *parse(Token *token);
-
-void print_node(Node *node);

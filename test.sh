@@ -250,7 +250,7 @@ assert "int main() { int a = 3; int *b = &a; int **c = &b; **c = 5; print(a); }"
 assert "int main() { int *p; alloc4(&p, 1, 2, 4, 8); int *q = p + 2; print(*q); q = q + 1; print(*q); q = q - 2; print(*q); }" "4 8 2"
 
 describe "変数宣言"
-assert "int main() { int a = 3; int* b = &a, c = &a; print(*b); }" "3"
+assert "int main() { int a = 3; int *b = &a, *c = &a; print(*b); }" "3"
 
 describe "sizeof"
 assert "int main() { print(sizeof(1)); }" "4"
@@ -284,6 +284,10 @@ assert "int a; void func() { a = 5; } int main() { func(); print(a); }" "5"
 
 describe "enum"
 assert "enum { A, B, C }; int main() { print(A); print(B); print(C); }" "0 1 2"
+
+describe "typedef"
+assert "typedef int int2; int main() { int2 a = 1; print(a); }" "1"
+assert "struct st { int a; }; typedef struct st* st_ptr; int main() { st_ptr x = calloc(1, sizeof(st_ptr)); x->a = 2; print(x->a); }" "2"
 
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "

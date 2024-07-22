@@ -9,6 +9,7 @@ typedef struct Program {
   vector *structs;    // 構造体のリスト
   vector *globals;    // グローバル変数のリスト
   vector *functions;  // 関数のリスト
+  vector *typedefs;   // typedefのリスト
 } Program;
 
 // ローカル変数の型
@@ -48,7 +49,7 @@ Node *unary(Token **token);
 Node *primary(Token **token);
 Node *parse_primary_access(Token **token, Node *node);
 Variable *parse_struct(Token **token, bool name_required);
-Variable *type(Token **token);
+Variable *type(Token **token, bool exclude_ptr);
 
 Program *parse(Token *token);
 

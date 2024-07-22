@@ -15,6 +15,7 @@ void print_debug_token(char *type, Token **token) {
 
 vector *global_locals;
 vector *global_structs;
+vector *global_typedefs;
 vector *global_local_structs;
 vector *global_globals;
 int anon_structs_index;
@@ -68,12 +69,23 @@ int find_struct_field(Token *tok, Variable *struct_var) {
   return -1;
 }
 
+Variable *find_typedef(Token *tok) {
+  for (int i = 0; i < global_typedefs->size; i++) {
+    Variable *var = vec_at(global_typedefs, i);
+    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len)) {
+      return var;
+    }
+  }
+  return NULL;
+}
+
 Program *program(Token **token) {
   print_debug_token("program", token);
 
   vector *code = new_vector();
   global_structs = new_vector();
   global_globals = new_vector();
+  global_typedefs = new_vector();
   anon_structs_index = 0;
   while ((*token)->kind != TK_EOF) {
     global_local_structs = new_vector();
@@ -86,6 +98,7 @@ Program *program(Token **token) {
   program->functions = code;
   program->structs = global_structs;
   program->globals = global_globals;
+  program->typedefs = global_typedefs;
   return program;
 }
 
@@ -119,7 +132,12 @@ Function *global_decl(Token **token) {
     return NULL;
   }
 
-  Variable *return_type = type(token);
+  bool f_typedef = false;
+  if (consume_reserved(token, TK_TYPEDEF)) {
+    f_typedef = true;
+  }
+
+  Variable *return_type = type(token, false);
   if (return_type != NULL) {
     if (return_type->type == TYPE_STRUCT) {
       vec_push_last(global_structs, return_type);
@@ -127,6 +145,22 @@ Function *global_decl(Token **token) {
 
     Token *tok = consume_ident(token);
     if (tok == NULL) {
+      if (f_typedef) {
+        error_at((*token)->str, "識別子ではありません");
+      }
+      expect(token, ";");
+      return NULL;
+    }
+
+    if (f_typedef) {
+      Variable *var = find_typedef(tok);
+      if (var != NULL) {
+        error_at(tok->str, "変数が二重定義されています");
+      }
+      var = return_type;
+      var->name = tok->str;
+      var->len = tok->len;
+      vec_push_last(global_typedefs, var);
       expect(token, ";");
       return NULL;
     }
@@ -141,7 +175,7 @@ Function *global_decl(Token **token) {
       vector *locals = new_vector();
       int argc = 0;
       while (!consume(token, ")")) {
-        Variable *argument_type = type(token);
+        Variable *argument_type = type(token, false);
         if (argument_type == NULL) {
           error_at((*token)->str, "型ではありません");
         }
@@ -281,15 +315,15 @@ Node *expr(Token **token) { return local_decl(token); }
 Node *local_decl(Token **token) {
   print_debug_token("local_decl", token);
 
-  Variable *var_type = type(token);
+  Variable *var_type = type(token, true);
   if (var_type == NULL) return logical(token);
-
-  int ref_nest = 0;
-  while (consume(token, "*")) ref_nest++;
 
   Node *node = new_node(ND_GROUP, NULL, NULL);
   vector *stmts = new_vector();
   do {
+    int ref_nest = 0;
+    while (consume(token, "*")) ref_nest++;
+
     Token *tok = consume_ident(token);
     if (tok == NULL) {
       error_at((*token)->str, "識別子ではありません");
@@ -457,7 +491,7 @@ Node *unary(Token **token) {
 
   if (consume_reserved(token, TK_SIZEOF)) {
     expect(token, "(");
-    Variable *node_type = type(token);
+    Variable *node_type = type(token, false);
     if (node_type == NULL) {
       Node *node = logical(token);
       node_type = get_node_type(node, global_locals);
@@ -517,7 +551,7 @@ Node *primary(Token **token) {
   print_debug_token("primary", token);
 
   if (consume(token, "(")) {
-    Variable *cast_type = type(token);
+    Variable *cast_type = type(token, false);
     if (cast_type != NULL) {
       expect(token, ")");
       Node *node = primary(token);
@@ -643,7 +677,7 @@ Variable *parse_struct(Token **token, bool is_declare) {
     }
 
     while (!consume(token, "}")) {
-      Variable *field_type = type(token);
+      Variable *field_type = type(token, false);
       if (field_type == NULL) {
         error_at((*token)->str, "型ではありません");
         return NULL;
@@ -669,9 +703,10 @@ Variable *parse_struct(Token **token, bool is_declare) {
   return var;
 }
 
-Variable *type(Token **token) {
+Variable *type(Token **token, bool exclude_ptr) {
   print_debug_token("type", token);
 
+  Variable *var = NULL;
   int type = -1;
   if (consume_reserved(token, TK_VOID)) {
     type = TYPE_VOID;
@@ -679,17 +714,27 @@ Variable *type(Token **token) {
     type = TYPE_I32;
   }
   if (type != -1) {
+    var = new_variable(-1, type, NULL, 0);
+  }
+
+  if (var == NULL) {
+    var = find_typedef(*token);
+    if (var != NULL) consume_ident(token);
+  }
+
+  if (var == NULL) {
+    var = parse_struct(token, false);
+  }
+
+  if (!exclude_ptr) {
     int ref_nest = 0;
     while (consume(token, "*")) ref_nest++;
-    Variable *var = new_variable(-1, type, NULL, 0);
     for (int nest = ref_nest; nest > 0; nest--) {
       Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
       var = ptr;
     }
-    return var;
   }
 
-  Variable *var = parse_struct(token, false);
   return var;
 }
 

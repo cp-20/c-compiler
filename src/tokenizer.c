@@ -95,72 +95,79 @@ Token *tokenize(char *p) {
     }
 
     // return文
-    if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6])) {
+    if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6]) && !is_digit(p[6])) {
       cur = new_token(TK_RETURN, cur, p);
       p += 6;
       continue;
     }
 
     // if文
-    if (strncmp(p, "if", 2) == 0 && !is_alnum(p[2])) {
+    if (strncmp(p, "if", 2) == 0 && !is_alnum(p[2]) && !is_digit(p[2])) {
       cur = new_token(TK_IF, cur, p);
       p += 2;
       continue;
     }
 
     // else文
-    if (strncmp(p, "else", 4) == 0 && !is_alnum(p[4])) {
+    if (strncmp(p, "else", 4) == 0 && !is_alnum(p[4]) && !is_digit(p[4])) {
       cur = new_token(TK_ELSE, cur, p);
       p += 4;
       continue;
     }
 
     // while文
-    if (strncmp(p, "while", 5) == 0 && !is_alnum(p[5])) {
+    if (strncmp(p, "while", 5) == 0 && !is_alnum(p[5]) && !is_digit(p[5])) {
       cur = new_token(TK_WHILE, cur, p);
       p += 5;
       continue;
     }
 
     // for文
-    if (strncmp(p, "for", 3) == 0 && !is_alnum(p[3])) {
+    if (strncmp(p, "for", 3) == 0 && !is_alnum(p[3]) && !is_digit(p[3])) {
       cur = new_token(TK_FOR, cur, p);
       p += 3;
       continue;
     }
 
     // int型
-    if (strncmp(p, "int", 3) == 0 && !is_alnum(p[3])) {
+    if (strncmp(p, "int", 3) == 0 && !is_alnum(p[3]) && !is_digit(p[3])) {
       cur = new_token(TK_INT, cur, p);
       p += 3;
       continue;
     }
 
     // void型
-    if (strncmp(p, "void", 4) == 0 && !is_alnum(p[4])) {
+    if (strncmp(p, "void", 4) == 0 && !is_alnum(p[4]) && !is_digit(p[4])) {
       cur = new_token(TK_VOID, cur, p);
       p += 4;
       continue;
     }
 
     // struct
-    if (strncmp(p, "struct", 6) == 0 && !is_alnum(p[6])) {
+    if (strncmp(p, "struct", 6) == 0 && !is_alnum(p[6]) && !is_digit(p[6])) {
       cur = new_token(TK_STRUCT, cur, p);
       p += 6;
       continue;
     }
 
     // sizeof演算子
-    if (strncmp(p, "sizeof", 6) == 0 && !is_alnum(p[6])) {
+    if (strncmp(p, "sizeof", 6) == 0 && !is_alnum(p[6]) && !is_digit(p[6])) {
       cur = new_token(TK_SIZEOF, cur, p);
       p += 6;
       continue;
     }
 
     // enum
-    if (strncmp(p, "enum", 4) == 0 && !is_alnum(p[4])) {
+    if (strncmp(p, "enum", 4) == 0 && !is_alnum(p[4]) && !is_digit(p[4])) {
       cur = new_token(TK_ENUM, cur, p);
       p += 4;
+      continue;
+    }
+
+    // typedef
+    if (strncmp(p, "typedef", 7) == 0 && !is_alnum(p[7]) && !is_digit(p[7])) {
+      cur = new_token(TK_TYPEDEF, cur, p);
+      p += 7;
       continue;
     }
 

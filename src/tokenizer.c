@@ -79,6 +79,21 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // 行コメントをスキップ
+    if (strncmp(p, "//", 2) == 0) {
+      p += 2;
+      while (*p != '\n') p++;
+      continue;
+    }
+
+    // ブロックコメントをスキップ
+    if (strncmp(p, "/*", 2) == 0) {
+      char *q = strstr(p + 2, "*/");
+      if (!q) error_at(p, "コメントが閉じられていません");
+      p = q + 2;
+      continue;
+    }
+
     // 2文字の記号
     if (is_special2(p)) {
       cur = new_token(TK_RESERVED, cur, p);

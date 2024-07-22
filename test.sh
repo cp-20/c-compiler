@@ -302,6 +302,10 @@ assert "int func_a(int k) { return func_b(k-1); } int func_b(int k) { if (k == 0
 describe "プロトタイプ宣言"
 assert "int func(int k); int func(int k) { return k + 1; } int main() { print(func(1)); }" "2"
 
+describe "コメント"
+assert "int main() { // print(1);\nprint(2);\nprint(3); }" "2 3"
+assert "int main() { /* print(1);\nprint(2);*/\nprint(3); }" "3"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

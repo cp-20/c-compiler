@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "color.h"
+
 // 入力プログラム
 char *user_input;
 
@@ -41,7 +43,6 @@ void error_at(char *loc, char *fmt, ...) {
   va_start(ap, fmt);
 
   int pos = loc - line + indent;
-  fprintf(stderr, "%s\n", user_input);
   fprintf(stderr, "%*s", pos, " ");  // pos個の空白を出力
   fprintf(stderr, "^ ");
   vfprintf(stderr, fmt, ap);

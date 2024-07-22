@@ -203,13 +203,18 @@ Function *global_decl(Token **token) {
       func->argc = argc;
       func->locals = locals;
       global_locals = locals;
-      expect(token, "{");
-      vector *stmts = new_vector();
-      while (!consume(token, "}")) {
-        vec_push_last(stmts, stmt(token));
+      if (consume(token, "{")) {
+        vector *stmts = new_vector();
+        while (!consume(token, "}")) {
+          vec_push_last(stmts, stmt(token));
+        }
+        func->body = stmts;
+        return func;
+      } else {
+        // プロトタイプ宣言なら何もしない
+        expect(token, ";");
+        return NULL;
       }
-      func->body = stmts;
-      return func;
     }
 
     // グローバル変数の宣言

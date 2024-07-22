@@ -296,6 +296,9 @@ assert "int main() { int a = 10; printf(\"a = %d\", a); }" "a = 10"
 describe "相互再帰"
 assert "int func_a(int k) { return func_b(k-1); } int func_b(int k) { if (k == 0) return 10; return func_a(k); } int main() { print(func_a(10)); }" "10"
 
+describe "プロトタイプ宣言"
+assert "int func(int k); int func(int k) { return k + 1; } int main() { print(func(1)); }" "2"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

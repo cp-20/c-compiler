@@ -22,6 +22,7 @@ typedef enum {
   TK_STRUCT,    // struct
   TK_ENUM,      // enum
   TK_TYPEDEF,   // typedef
+  TK_STRING,    // 文字列
   TK_EOF,       // 入力の終わりを表すトークン
 } TokenKind;
 

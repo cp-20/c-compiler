@@ -16,6 +16,7 @@ void print_debug_token(char *type, Token **token) {
 vector *global_locals;
 vector *global_structs;
 vector *global_typedefs;
+vector *global_strings;
 vector *global_local_structs;
 vector *global_globals;
 int anon_structs_index;
@@ -86,6 +87,7 @@ Program *program(Token **token) {
   global_structs = new_vector();
   global_globals = new_vector();
   global_typedefs = new_vector();
+  global_strings = new_vector();
   anon_structs_index = 0;
   while ((*token)->kind != TK_EOF) {
     global_local_structs = new_vector();
@@ -99,6 +101,7 @@ Program *program(Token **token) {
   program->structs = global_structs;
   program->globals = global_globals;
   program->typedefs = global_typedefs;
+  program->strings = global_strings;
   return program;
 }
 
@@ -591,6 +594,15 @@ Node *primary(Token **token) {
     }
 
     node = parse_primary_access(token, node);
+    return node;
+  }
+
+  tok = *token;
+  if (consume_reserved(token, TK_STRING)) {
+    Node *node = calloc(1, sizeof(Node));
+    node->kind = ND_STRING;
+    node->offset = global_strings->size;
+    vec_push_last(global_strings, tok);
     return node;
   }
 

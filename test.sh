@@ -289,6 +289,10 @@ describe "typedef"
 assert "typedef int int2; int main() { int2 a = 1; print(a); }" "1"
 assert "struct st { int a; }; typedef struct st* st_ptr; int main() { st_ptr x = calloc(1, sizeof(st_ptr)); x->a = 2; print(x->a); }" "2"
 
+describe "string"
+assert "int main() { printf(\"Hello, World!\"); }" "Hello, World!"
+assert "int main() { int a = 10; printf(\"a = %d\", a); }" "a = 10"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

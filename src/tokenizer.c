@@ -190,6 +190,19 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // 文字列
+    if (*p == '"') {
+      char *start = ++p;
+      while (*p != '"' || *(p - 1) == '\\') {
+        if (*p == '\0') error_at(start, "文字列が閉じられていません");
+        p++;
+      }
+      cur = new_token(TK_STRING, cur, start);
+      cur->len = p - start;
+      p++;
+      continue;
+    }
+
     error_at(p, "トークナイズできません");
   }
 

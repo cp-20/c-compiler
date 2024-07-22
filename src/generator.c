@@ -87,6 +87,15 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
           stack, new_variable(r_num, TYPE_I32, NULL, 0), node->cast);
     }
     return code;
+  } else if (node->kind == ND_STRING) {
+    int r_string = r_register(rctx);
+    push_code(code, "  %%%d = alloca i8*, align 8\n", r_string);
+    push_code(code, "  store i8* @.str.%d, i8** %%%d, align 8\n", node->offset,
+              r_string);
+    Variable* var =
+        new_variable(r_string, TYPE_PTR, new_variable(-1, TYPE_I8, NULL, 0), 0);
+    push_variable_with_cast_if_needed(stack, var, node->cast);
+    return code;
   } else if (node->kind == ND_RETURN) {
     // returnの場合は値を計算して返す
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
@@ -564,6 +573,13 @@ void generate_global(LVar* var) {
          var->name, type, size);
 }
 
+void generate_string(Token* tok, int index) {
+  printf(
+      "@.str.%d = private unnamed_addr constant [%d x i8] c\"%.*s\\00\", "
+      "align 1\n",
+      index, tok->len + 1, tok->len, tok->str);
+}
+
 void generate_func(Function* func) {
   // 初期化処理
   vector* stack = new_vector();
@@ -665,6 +681,7 @@ void generate_print() {
   printf(
       "; Function Attrs: nounwind allocsize(0,1)\n"
       "declare noalias ptr @malloc(i64 noundef, i64 noundef) #4\n");
+  printf("declare i32 @printf(ptr noundef, ...) #5\n");
 }
 
 void generate(Program* code) {
@@ -689,6 +706,15 @@ void generate(Program* code) {
                 var->len, var->name);
     if (var->var->value != NULL) continue;
     generate_global(var);
+  }
+
+  print_debug(COL_BLUE "[generator]" COL_RESET " code->strings->size = %d",
+              code->strings->size);
+  for (int i = 0; i < code->strings->size; i++) {
+    Token* tok = vec_at(code->strings, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " code->strings[%d] = %.*s", i,
+                tok->len, tok->str);
+    generate_string(tok, i);
   }
 
   // コード生成

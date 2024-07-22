@@ -37,6 +37,9 @@ char* get_variable_type_str(Variable* var) {
   switch (var->type) {
     case TYPE_VOID:
       return "void";
+    case TYPE_I8: {
+      return "i8";
+    }
     case TYPE_I32: {
       return "i32";
     }
@@ -88,6 +91,8 @@ int get_variable_size(Variable* var) {
   }
 
   switch (var->type) {
+    case TYPE_I8:
+      return 1;
     case TYPE_I32:
       return 4;
     case TYPE_VOID:
@@ -118,7 +123,9 @@ bool is_pointer_like(Variable* var) {
   return var->type == TYPE_PTR || var->type == TYPE_ARRAY;
 }
 
-bool is_number(Variable* var) { return var->type == TYPE_I32; }
+bool is_number(Variable* var) {
+  return var->type == TYPE_I8 || var->type == TYPE_I32;
+}
 
 Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
   if (!is_pointer_like(lval) && !is_pointer_like(rval)) {

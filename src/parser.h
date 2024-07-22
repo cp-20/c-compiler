@@ -10,6 +10,7 @@ typedef struct Program {
   vector *globals;    // グローバル変数のリスト
   vector *functions;  // 関数のリスト
   vector *typedefs;   // typedefのリスト
+  vector *strings;    // 文字列のリスト
 } Program;
 
 // ローカル変数の型

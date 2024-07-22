@@ -8,6 +8,7 @@
 
 typedef enum {
   TYPE_VOID,
+  TYPE_I8,
   TYPE_I32,
   TYPE_PTR,
   TYPE_ARRAY,

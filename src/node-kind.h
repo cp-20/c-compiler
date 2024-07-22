@@ -29,4 +29,5 @@ typedef enum {
   ND_GROUP,   // 複数のノードをまとめる
   ND_CALL,    // 関数呼び出し
   ND_NUM,     // 整数
+  ND_STRING,  // 文字列
 } NodeKind;

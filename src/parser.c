@@ -84,6 +84,7 @@ Variable *find_typedef(Token *tok) {
 void setup_program() {
   Variable *void_ptr =
       new_variable(-1, TYPE_PTR, new_variable(-1, TYPE_VOID, NULL, 0), 0);
+
   // stderr
   LVar *var_stderr = calloc(1, sizeof(LVar));
   var_stderr->name = "stderr";
@@ -113,7 +114,23 @@ void setup_program() {
   var_va_list->name = "va_list";
   var_va_list->len = 7;
   vec_push_last(global_typedefs, var_va_list);
+
+  // bool
+  Variable *var_bool = new_variable(-1, TYPE_I32, NULL, 0);
+  var_bool->name = "bool";
+  var_bool->len = 4;
+  vec_push_last(global_typedefs, var_bool);
 };
+
+char *function_conversion(char *name) {
+  if (strcmp(name, "va_end") == 0) {
+    return "llvm.va_end";
+  }
+  if (strcmp(name, "va_start") == 0) {
+    return "llvm.va_start";
+  }
+  return name;
+}
 
 Program *program(Token **token) {
   print_debug_token("program", token);
@@ -153,15 +170,18 @@ Function *global_decl(Token **token) {
     if (tok == NULL) {
       error_at((*token)->str, "識別子ではありません");
     }
-    LVar *lvar = calloc(1, sizeof(LVar));
-    lvar->name = tok->str;
-    lvar->len = tok->len;
-    lvar->offset = -global_globals->size - 1;
-    lvar->var = return_type;
-    lvar->var->name = tok->str;
-    lvar->var->len = tok->len;
-    lvar->var->reg = -2;
-    vec_push_last(global_globals, lvar);
+    LVar *lvar = find_lvar_from_vector(tok, global_globals);
+    if (lvar == NULL) {
+      LVar *lvar = calloc(1, sizeof(LVar));
+      lvar->name = tok->str;
+      lvar->len = tok->len;
+      lvar->offset = -global_globals->size - 1;
+      lvar->var = return_type;
+      lvar->var->name = tok->str;
+      lvar->var->len = tok->len;
+      lvar->var->reg = -2;
+      vec_push_last(global_globals, lvar);
+    }
     expect(token, ";");
     return NULL;
   }
@@ -283,7 +303,12 @@ Function *global_decl(Token **token) {
     if (consume(token, ";")) {
       LVar *lvar = find_lvar_from_vector(tok, global_globals);
       if (lvar != NULL) {
-        error_at(tok->str, "変数が二重定義されています");
+        if (lvar->var->reg != -2) {
+          error_at(tok->str, "変数が二重定義されています");
+        } else {
+          lvar->var->reg = -1;
+          return NULL;
+        }
       }
       lvar = calloc(1, sizeof(LVar));
       lvar->name = tok->str;
@@ -320,8 +345,12 @@ Node *stmt(Token **token) {
   if (consume_reserved(token, TK_RETURN)) {
     node = calloc(1, sizeof(Node));
     node->kind = ND_RETURN;
-    node->lhs = expr(token);
-    expect(token, ";");
+    if (consume(token, ";")) {
+      node->lhs = NULL;
+    } else {
+      node->lhs = expr(token);
+      expect(token, ";");
+    }
     return node;
   }
 
@@ -665,10 +694,13 @@ Node *primary(Token **token) {
     Node *node = calloc(1, sizeof(Node));
 
     if (consume(token, "(")) {
+      char *name = calloc(1, tok->len + 1);
+      memcpy(name, tok->str, tok->len);
+      char *call_name = function_conversion(name);
       node->kind = ND_CALL;
       node->call = calloc(1, sizeof(Call));
-      node->call->name = tok->str;
-      node->call->len = tok->len;
+      node->call->name = call_name;
+      node->call->len = strlen(call_name);
       node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);
       node->call->args = new_vector();
       while (!consume(token, ")")) {
@@ -863,7 +895,10 @@ Variable *type(Token **token, bool exclude_ptr) {
 
   if (var == NULL) {
     var = find_typedef(*token);
-    if (var != NULL) consume_ident(token);
+    if (var != NULL) {
+      var = with_reg(var, -1);
+      consume_ident(token);
+    };
   }
 
   if (var == NULL) {

@@ -99,6 +99,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     return code;
   } else if (node->kind == ND_RETURN) {
     // returnの場合は値を計算して返す
+    if (node->lhs == NULL) {
+      push_code(code, "  ret void\n");
+      r_register(rctx);
+      return code;
+    }
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
     Variable* val = get_last_variable(stack);
     char* val_type = get_variable_type_str(val);
@@ -306,7 +311,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       if (arg->reg >= 0) {
         push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_arg_val,
                   arg_type, arg_ptype, arg->reg, arg_size);
-
       } else {
         push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_arg_val,
                   arg_type, arg_ptype, arg->len, arg->name, arg_size);
@@ -493,10 +497,20 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   int val_size = get_variable_size(result_val);
   int r_left_val = r_register(rctx);
   int r_right_val = r_register(rctx);
-  push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_left_val,
-            lval_type, lval_ptype, lval->reg, lval_size);
-  push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val,
-            rval_type, rval_ptype, rval->reg, rval_size);
+  if (lval->reg >= 0) {
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_left_val,
+              lval_type, lval_ptype, lval->reg, lval_size);
+  } else {
+    push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_left_val,
+              lval_type, lval_ptype, lval->len, lval->name, lval_size);
+  }
+  if (rval->reg >= 0) {
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val,
+              rval_type, rval_ptype, rval->reg, rval_size);
+  } else {
+    push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_right_val,
+              rval_type, rval_ptype, rval->len, rval->name, rval_size);
+  }
 
   if (is_pointer_like(result_val)) {
     int r_result_val = r_register(rctx);

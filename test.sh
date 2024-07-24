@@ -306,6 +306,9 @@ describe "コメント"
 assert "int main() { // print(1);\nprint(2);\nprint(3); }" "2 3"
 assert "int main() { /* print(1);\nprint(2);*/\nprint(3); }" "3"
 
+describe "プリプロセッサ"
+assert "#define A 3\nint main() { print(A); }" "3"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

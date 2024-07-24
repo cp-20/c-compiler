@@ -1,11 +1,19 @@
 #include "seek.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "error.h"
+
+bool exists_file(char *path) {
+  FILE *fp = fopen(path, "r");
+  if (!fp) return false;
+  fclose(fp);
+  return true;
+}
 
 // 指定されたファイルの内容を返す
 char *read_file(char *path) {

@@ -5,8 +5,8 @@
 #include "debug.h"
 #include "error.h"
 #include "generator.h"
-#include "llvm.h"
 #include "parser.h"
+#include "preprocessor.h"
 #include "seek.h"
 #include "tokenizer.h"
 
@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
   // エラー出力の初期化
   init_error(input);
 
+  input = preprocess(input);
   Token* token = tokenize(input);
   Program* code = parse(token);
   Code* result = generate(code);

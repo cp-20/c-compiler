@@ -314,6 +314,9 @@ assert "#define A 3\nint main() { print(A); }" "3"
 describe "文字列結合"
 assert "int main() { char *a = \"Hello, \" \"World!\"; printf(a); }" "Hello, World!"
 
+describe "extern"
+assert "extern int global_variable; int main() { global_variable = 3; print(global_variable); }" "3"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

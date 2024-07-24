@@ -572,8 +572,13 @@ Code* generate_global(LVar* var) {
   Code* code = init_code();
   char* type = get_variable_type_str(var->var);
   int size = get_variable_size(var->var);
-  push_code(code, "@%.*s = dso_local global %s zeroinitializer, align %d\n",
-            var->len, var->name, type, size);
+  if (var->var->reg == -1) {
+    push_code(code, "@%.*s = dso_local global %s zeroinitializer, align %d\n",
+              var->len, var->name, type, size);
+  } else if (var->var->reg == -2) {
+    push_code(code, "@%.*s = external global %s, align %d\n", var->len,
+              var->name, type, size);
+  }
   return code;
 }
 

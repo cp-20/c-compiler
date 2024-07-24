@@ -193,6 +193,13 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // extern
+    if (strncmp(p, "extern", 6) == 0 && !is_alpha(p[6]) && !is_num(p[6])) {
+      cur = new_token(TK_EXTERN, cur, p);
+      p += 6;
+      continue;
+    }
+
     // 識別子
     if (is_alpha(*p)) {
       char *start = p;

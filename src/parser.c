@@ -108,6 +108,28 @@ Program *program(Token **token) {
 Function *global_decl(Token **token) {
   print_debug_token("global_decl", token);
 
+  if (consume_reserved(token, TK_EXTERN)) {
+    Variable *return_type = type(token, false);
+    if (return_type == NULL) {
+      error_at((*token)->str, "型ではありません");
+    }
+    Token *tok = consume_ident(token);
+    if (tok == NULL) {
+      error_at((*token)->str, "識別子ではありません");
+    }
+    LVar *lvar = calloc(1, sizeof(LVar));
+    lvar->name = tok->str;
+    lvar->len = tok->len;
+    lvar->offset = -global_globals->size - 1;
+    lvar->var = return_type;
+    lvar->var->name = tok->str;
+    lvar->var->len = tok->len;
+    lvar->var->reg = -2;
+    vec_push_last(global_globals, lvar);
+    expect(token, ";");
+    return NULL;
+  }
+
   if (enum_decl(token)) {
     expect(token, ";");
     return NULL;
@@ -224,6 +246,7 @@ Function *global_decl(Token **token) {
       lvar->var = return_type;
       lvar->var->name = tok->str;
       lvar->var->len = tok->len;
+      lvar->var->reg = -1;
       vec_push_last(global_globals, lvar);
       return NULL;
     }

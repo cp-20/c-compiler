@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int global_variable;
+
 void print(int n) { printf("%d\n", n); }
 
 int scan() {

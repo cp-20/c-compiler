@@ -317,6 +317,13 @@ assert "int main() { char *a = \"Hello, \" \"World!\"; printf(a); }" "Hello, Wor
 describe "extern"
 assert "extern int global_variable; int main() { global_variable = 3; print(global_variable); }" "3"
 
+describe "三項演算子"
+assert "int main() { print(1 ? 2 : 3); }" "2"
+assert "int main() { print(0 ? 2 : 3); }" "3"
+assert "int main() { print(1 ? 2 : 3 ? 4 : 5); }" "2"
+assert "int main() { print(0 ? 2 : 3 ? 4 : 5); }" "4"
+assert "int main() { print(0 ? 2 : 0 ? 4 : 5); }" "5"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

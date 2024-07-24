@@ -341,7 +341,7 @@ Node *local_decl(Token **token) {
   print_debug_token("local_decl", token);
 
   Variable *var_type = type(token, true);
-  if (var_type == NULL) return logical(token);
+  if (var_type == NULL) return ternary(token);
 
   Node *node = new_node(ND_GROUP, NULL, NULL);
   vector *stmts = new_vector();
@@ -382,7 +382,7 @@ Node *local_decl(Token **token) {
         expect(token, "{");
         int array_element = 0;
         while (!consume(token, "}")) {
-          Node *val = logical(token);
+          Node *val = ternary(token);
           Node *lvar_index_node =
               new_node(ND_ADD, lvar_node, new_node_num(array_element));
           Node *lvar_deref_node = new_node(ND_DEREF, lvar_index_node, NULL);
@@ -413,7 +413,7 @@ Node *local_decl(Token **token) {
         if (consume(token, "{")) {
           int array_element = 0;
           while (!consume(token, "}")) {
-            Node *val = logical(token);
+            Node *val = ternary(token);
             Node *lvar_index_node =
                 new_node(ND_ACCESS, lvar_node, new_node_num(array_element));
             Node *assign_node = new_node(ND_ASSIGN, lvar_index_node, val);
@@ -430,6 +430,22 @@ Node *local_decl(Token **token) {
     }
   } while (consume(token, ","));
   node->stmts = stmts;
+  return node;
+}
+
+Node *ternary(Token **token) {
+  print_debug_token("ternary", token);
+
+  Node *node = logical(token);
+  if (consume(token, "?")) {
+    Node *lhs = logical(token);
+    expect(token, ":");
+    Node *rhs = ternary(token);
+    Node *result = new_node(ND_TERNARY, node, new_node(ND_GROUP, lhs, rhs));
+    // とりあえず左辺の型にする (ホントは一致しているか確かめた方が良い気がする)
+    result->cast = get_node_type(lhs, global_locals);
+    return result;
+  }
   return node;
 }
 

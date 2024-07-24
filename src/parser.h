@@ -40,6 +40,7 @@ Function *global_decl(Token **token);
 Node *stmt(Token **token);
 Node *expr(Token **token);
 Node *local_decl(Token **token);
+Node *ternary(Token **token);
 Node *logical(Token **token);
 Node *assign(Token **token);
 Node *equality(Token **token);

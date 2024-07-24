@@ -406,6 +406,70 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     Variable* field_var = with_reg(field->var, r_field);
     push_variable_with_cast_if_needed(stack, field_var, node->cast);
     return code;
+  } else if (node->kind == ND_TERNARY) {
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+
+    Variable* cond = pop_variable(stack);
+    char* cond_type = get_variable_type_str(cond);
+    char* cond_ptype = get_ptr_variable_type_str(cond);
+    int cond_size = get_variable_size(cond);
+    int r_cond_val = r_register(rctx);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
+              cond_type, cond_ptype, cond->reg, cond_size);
+    int r_cond_bool = r_register(rctx);
+    push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
+              r_cond_val);
+
+    int r_result = r_register(rctx);
+    char* result_type = get_variable_type_str(node->cast);
+    int result_size = get_variable_size(node->cast);
+    push_code(code, "  %%%d = alloca %s, align %d\n", r_result, result_type,
+              result_size);
+    int r_then_label = r_register(rctx);
+
+    Code* block = init_code();
+    push_code(block, "%d:\n", r_then_label);
+    print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_TERNARY] " COL_RESET
+                         "generate ternary 1");
+    merge_code(block, generate_node(node->rhs->lhs, stack, locals_r, rctx));
+    print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_TERNARY] " COL_RESET
+                         "generate ternary 2");
+    Variable* lhs_result = pop_variable(stack);
+    char* lhs_type = get_variable_type_str(lhs_result);
+    char* lhs_ptype = get_ptr_variable_type_str(lhs_result);
+    int lhs_size = get_variable_size(lhs_result);
+    int lhs_val = r_register(rctx);
+    push_code(block, "  %%%d = load %s, %s %%%d, align %d\n", lhs_val, lhs_type,
+              lhs_ptype, lhs_result->reg, lhs_size);
+    push_code(block, "  store %s %%%d, %s %%%d, align %d\n", lhs_type, lhs_val,
+              lhs_ptype, r_result, lhs_size);
+
+    int r_next_label = r_register(rctx);
+
+    Code* sub_block = init_code();
+    push_code(sub_block, "%d:\n", r_next_label);
+    merge_code(sub_block, generate_node(node->rhs->rhs, stack, locals_r, rctx));
+    Variable* rhs_result = pop_variable(stack);
+    char* rhs_type = get_variable_type_str(rhs_result);
+    char* rhs_ptype = get_ptr_variable_type_str(rhs_result);
+    int rhs_size = get_variable_size(rhs_result);
+    int rhs_val = r_register(rctx);
+    push_code(sub_block, "  %%%d = load %s, %s %%%d, align %d\n", rhs_val,
+              rhs_type, rhs_ptype, rhs_result->reg, rhs_size);
+    push_code(sub_block, "  store %s %%%d, %s %%%d, align %d\n", rhs_type,
+              rhs_val, rhs_ptype, r_result, rhs_size);
+    int r_final_label = r_register(rctx);
+    push_code(sub_block, "  br label %%%d\n", r_final_label);
+    push_code(block, "  br label %%%d\n", r_final_label);
+
+    merge_code(block, sub_block);
+    push_code(block, "%d:\n", r_final_label);
+
+    push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
+              r_then_label, r_next_label);
+    merge_code(code, block);
+    push_variable(stack, with_reg(node->cast, r_result));
+    return code;
   }
 
   // 演算子の場合は左右のノードを先に計算する
@@ -625,9 +689,13 @@ Code* generate_func(Function* func) {
   r_register(rctx);
 
   // ローカル変数の初期化
+  print_debug(COL_BLUE "[generator]" COL_RESET " func->locals->size = %d",
+              func->locals->size);
   Variable** locals_r = calloc(func->locals->size, sizeof(Variable*));
   for (int i = 0; i < func->argc; i++) {
     LVar* arg = vec_at(func->locals, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " func->locals[%d] = %.*s", i,
+                arg->len, arg->name);
     char* var_type = get_variable_type_str(arg->var);
     char* var_ptype = get_ptr_variable_type_str(arg->var);
     int var_size = get_variable_size(arg->var);
@@ -640,6 +708,8 @@ Code* generate_func(Function* func) {
   }
   for (int i = func->argc; i < func->locals->size; i++) {
     LVar* lvar = vec_at(func->locals, i);
+    print_debug(COL_BLUE "[generator]" COL_RESET " func->locals[%d] = %.*s", i,
+                lvar->len, lvar->name);
     char* var_type = get_variable_type_str(lvar->var);
     int var_size = get_variable_size(lvar->var);
     int r = r_register(rctx);

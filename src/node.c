@@ -144,6 +144,15 @@ Code *print_node(Node *node) {
     return code;
   }
 
+  if (node->kind == ND_TERNARY) {
+    merge_code(code, print_node(node->lhs));
+    push_code(code, " ? ");
+    merge_code(code, print_node(node->rhs->lhs));
+    push_code(code, " : ");
+    merge_code(code, print_node(node->rhs->rhs));
+    return code;
+  }
+
   push_code(code, "(");
   merge_code(code, print_node(node->lhs));
   if (node->kind == ND_ADD) {

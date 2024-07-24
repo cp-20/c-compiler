@@ -11,10 +11,11 @@ stmt           = expr ";"
                | "for" "(" expr? ";" expr? ";" expr? ")" stmt
                | "return" expr ";"
 expr           = local_decl
-local_decl     = type ident ("=" logical)? ("," ident ("=" logical)? )*
-               | type ident "[" num "]" ("=" "{" (logical ("," logical)*)? "}")?
-               | type ident "[" "]" ("=" "{" (logical ("," logical)*)? "}")?
-               | struct_decl ("=" "{" (logical ("," logical)*)? "}")?
+local_decl     = type ident ("=" ternary)? ("," ident ("=" ternary)? )*
+               | type ident "[" num "]" ("=" "{" (ternary ("," ternary)*)? "}")?
+               | type ident "[" "]" ("=" "{" (ternary ("," ternary)*)? "}")?
+               | struct_decl ("=" "{" (ternary ("," ternary)*)? "}")?
+ternary        = logical ("?" logical ":" logical)?
 logical        = assign ("&&" assign | "||" assign)*
 assign         = equality ("=" assign)?
 equality       = relational ("==" relational | "!=" relational)*

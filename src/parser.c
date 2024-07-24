@@ -108,29 +108,7 @@ Program *program(Token **token) {
 Function *global_decl(Token **token) {
   print_debug_token("global_decl", token);
 
-  if (consume_reserved(token, TK_ENUM)) {
-    expect(token, "{");
-    int enum_value = 0;
-    while (!consume(token, "}")) {
-      Token *tok = consume_ident(token);
-      if (tok == NULL) {
-        error_at((*token)->str, "識別子ではありません");
-      }
-      LVar *lvar = find_lvar_from_vector(tok, global_globals);
-      if (lvar != NULL) {
-        error_at(tok->str, "変数が二重定義されています");
-      }
-      lvar = calloc(1, sizeof(LVar));
-      lvar->name = tok->str;
-      lvar->len = tok->len;
-      lvar->offset = -global_globals->size - 1;
-      lvar->var = new_variable(-1, TYPE_I32, NULL, 0);
-      lvar->var->value = malloc(sizeof(int));
-      *lvar->var->value = enum_value;
-      vec_push_last(global_globals, lvar);
-      enum_value++;
-      consume(token, ",");
-    }
+  if (enum_decl(token)) {
     expect(token, ";");
     return NULL;
   }
@@ -138,6 +116,22 @@ Function *global_decl(Token **token) {
   bool f_typedef = false;
   if (consume_reserved(token, TK_TYPEDEF)) {
     f_typedef = true;
+  }
+
+  if (f_typedef && enum_decl(token)) {
+    Token *tok = consume_ident(token);
+    if (tok == NULL) {
+      error_at((*token)->str, "識別子ではありません");
+    }
+    expect(token, ";");
+
+    Variable *var = find_typedef(tok);
+    var = new_variable(-1, TYPE_I32, NULL, 0);
+    var->name = tok->str;
+    var->len = tok->len;
+    vec_push_last(global_typedefs, var);
+
+    return NULL;
   }
 
   Variable *return_type = type(token, false);
@@ -718,6 +712,35 @@ Variable *parse_struct(Token **token, bool is_declare) {
     }
   }
   return var;
+}
+
+bool enum_decl(Token **token) {
+  if (consume_reserved(token, TK_ENUM)) {
+    expect(token, "{");
+    int enum_value = 0;
+    while (!consume(token, "}")) {
+      Token *tok = consume_ident(token);
+      if (tok == NULL) {
+        error_at((*token)->str, "識別子ではありません");
+      }
+      LVar *lvar = find_lvar_from_vector(tok, global_globals);
+      if (lvar != NULL) {
+        error_at(tok->str, "変数が二重定義されています");
+      }
+      lvar = calloc(1, sizeof(LVar));
+      lvar->name = tok->str;
+      lvar->len = tok->len;
+      lvar->offset = -global_globals->size - 1;
+      lvar->var = new_variable(-1, TYPE_I32, NULL, 0);
+      lvar->var->value = malloc(sizeof(int));
+      *lvar->var->value = enum_value;
+      vec_push_last(global_globals, lvar);
+      enum_value++;
+      consume(token, ",");
+    }
+    return true;
+  }
+  return false;
 }
 
 Variable *type(Token **token, bool exclude_ptr) {

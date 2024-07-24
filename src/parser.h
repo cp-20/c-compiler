@@ -50,6 +50,7 @@ Node *unary(Token **token);
 Node *primary(Token **token);
 Node *parse_primary_access(Token **token, Node *node);
 Variable *parse_struct(Token **token, bool name_required);
+bool enum_decl(Token **token);
 Variable *type(Token **token, bool exclude_ptr);
 
 Program *parse(Token *token);

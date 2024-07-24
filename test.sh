@@ -291,6 +291,8 @@ assert "enum { A, B, C }; int main() { print(A); print(B); print(C); }" "0 1 2"
 describe "typedef"
 assert "typedef int int2; int main() { int2 a = 1; print(a); }" "1"
 assert "struct st { int a; }; typedef struct st* st_ptr; int main() { st_ptr x = calloc(1, sizeof(st_ptr)); x->a = 2; print(x->a); }" "2"
+assert "typedef struct st { int a; } st; int main() { st* x = calloc(1, sizeof(st*)); x->a = 2; print(x->a); }" "2"
+assert "typedef enum { A, B, C } e; int main() { e x = A; print(x); }" "0"
 
 describe "string"
 assert "int main() { printf(\"Hello, World!\"); }" "Hello, World!"

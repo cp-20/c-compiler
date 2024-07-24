@@ -68,6 +68,11 @@ bool is_special2(char *p) {
   return false;
 }
 
+bool is_special3(char *p) {
+  if (strncmp(p, "...", 3) == 0) return true;
+  return false;
+}
+
 // 入力文字列pをトークナイズしてそれを返す
 Token *tokenize(char *p) {
   Token head;
@@ -93,6 +98,14 @@ Token *tokenize(char *p) {
       char *q = strstr(p + 2, "*/");
       if (!q) error_at(p, "コメントが閉じられていません");
       p = q + 2;
+      continue;
+    }
+
+    // 3文字の記号
+    if (is_special3(p)) {
+      cur = new_token(TK_RESERVED, cur, p);
+      cur->len = 3;
+      p += 3;
       continue;
     }
 

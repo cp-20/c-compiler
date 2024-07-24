@@ -193,28 +193,38 @@ Function *global_decl(Token **token) {
 
       vector *locals = new_vector();
       int argc = 0;
-      while (!consume(token, ")")) {
-        Variable *argument_type = type(token, false);
-        if (argument_type == NULL) {
-          error_at((*token)->str, "型ではありません");
-        }
+      if ((*token)->kind == TK_VOID && (*token)->next->kind == TK_RESERVED &&
+          (*token)->next->str[0] == ')') {
+        consume_reserved(token, TK_VOID);
+        expect(token, ")");
+      } else {
+        while (!consume(token, ")")) {
+          if (consume(token, "...")) {
+            expect(token, ")");
+            break;
+          }
+          Variable *argument_type = type(token, false);
+          if (argument_type == NULL) {
+            error_at((*token)->str, "型ではありません");
+          }
 
-        Token *tok = consume_ident(token);
-        if (tok == NULL) {
-          error_at((*token)->str, "識別子ではありません");
+          Token *tok = consume_ident(token);
+          if (tok == NULL) {
+            error_at((*token)->str, "識別子ではありません");
+          }
+          LVar *lvar = find_lvar_from_vector(tok, locals);
+          if (lvar != NULL) {
+            error_at(tok->str, "変数が二重定義されています");
+          }
+          lvar = calloc(1, sizeof(LVar));
+          lvar->name = tok->str;
+          lvar->len = tok->len;
+          lvar->offset = locals->size;
+          lvar->var = argument_type;
+          vec_push_last(locals, lvar);
+          argc++;
+          consume(token, ",");
         }
-        LVar *lvar = find_lvar_from_vector(tok, locals);
-        if (lvar != NULL) {
-          error_at(tok->str, "変数が二重定義されています");
-        }
-        lvar = calloc(1, sizeof(LVar));
-        lvar->name = tok->str;
-        lvar->len = tok->len;
-        lvar->offset = locals->size;
-        lvar->var = argument_type;
-        vec_push_last(locals, lvar);
-        argc++;
-        consume(token, ",");
       }
       func->argc = argc;
       func->locals = locals;

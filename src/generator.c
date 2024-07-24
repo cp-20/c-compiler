@@ -748,12 +748,13 @@ Code* generate_header() {
   Code* code = init_code();
   push_code(
       code,
-      "source_filename = \"calc.c\"\n"
+      "source_filename = \"%s\"\n"
       "target datalayout = "
       "\"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-"
       "S128\"\n"
       "target triple = \"x86_64-pc-linux-gnu\"\n"
-      "\n");
+      "\n",
+      filename);
   return code;
 }
 

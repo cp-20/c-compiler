@@ -8,6 +8,7 @@
 #include "error.h"
 #include "llvm.h"
 #include "parser.h"
+#include "seek.h"
 #include "variable.h"
 #include "vector.h"
 
@@ -760,16 +761,9 @@ Code* generate_header() {
 
 Code* generate_lib_functions() {
   Code* code = init_code();
-  push_code(code,
-            "declare i32 @print(i32 noundef, ...) #0\n"
-            "declare i32 @scan() #1\n"
-            "declare i32 @alloc4(i32** noundef, i32 noundef, i32 noundef, i32 "
-            "noundef, i32 noundef) #2\n"
-            "; Function Attrs: nounwind allocsize(0,1)\n"
-            "declare noalias ptr @calloc(i64 noundef, i64 noundef) #3\n"
-            "; Function Attrs: nounwind allocsize(0,1)\n"
-            "declare noalias ptr @malloc(i64 noundef, i64 noundef) #4\n"
-            "declare i32 @printf(ptr noundef, ...) #5\n");
+  char* lib_code = read_file("src/lib.ll");
+  push_code(code, "%s", lib_code);
+
   return code;
 }
 

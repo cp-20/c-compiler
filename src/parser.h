@@ -35,6 +35,8 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 
 Node *new_node_num(int val);
 
+void setup_program(void);
+
 Program *program(Token **token);
 Function *global_decl(Token **token);
 Node *stmt(Token **token);

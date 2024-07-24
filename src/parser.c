@@ -81,6 +81,40 @@ Variable *find_typedef(Token *tok) {
   return NULL;
 }
 
+void setup_program() {
+  Variable *void_ptr =
+      new_variable(-1, TYPE_PTR, new_variable(-1, TYPE_VOID, NULL, 0), 0);
+  // stderr
+  LVar *var_stderr = calloc(1, sizeof(LVar));
+  var_stderr->name = "stderr";
+  var_stderr->len = 6;
+  var_stderr->offset = -global_globals->size - 1;
+  var_stderr->var = void_ptr;
+  var_stderr->var->name = "stderr";
+  var_stderr->var->len = 6;
+  var_stderr->var->reg = -2;
+  vec_push_last(global_globals, var_stderr);
+
+  // va_list
+  Variable *__va_list_tag = new_variable(-1, TYPE_STRUCT, NULL, 0);
+  __va_list_tag->name = "__va_list_tag";
+  __va_list_tag->len = 13;
+  __va_list_tag->fields = new_vector();
+  LVar *i32 = calloc(1, sizeof(LVar));
+  i32->var = new_variable(-1, TYPE_I32, NULL, 0);
+  vec_push_last(__va_list_tag->fields, i32);
+  vec_push_last(__va_list_tag->fields, i32);
+  LVar *ptr = calloc(1, sizeof(LVar));
+  ptr->var = void_ptr;
+  vec_push_last(__va_list_tag->fields, ptr);
+  vec_push_last(__va_list_tag->fields, ptr);
+  vec_push_last(global_structs, __va_list_tag);
+  Variable *var_va_list = new_variable(-1, TYPE_ARRAY, __va_list_tag, 1);
+  var_va_list->name = "va_list";
+  var_va_list->len = 7;
+  vec_push_last(global_typedefs, var_va_list);
+};
+
 Program *program(Token **token) {
   print_debug_token("program", token);
 
@@ -90,6 +124,7 @@ Program *program(Token **token) {
   global_typedefs = new_vector();
   global_strings = new_vector();
   anon_structs_index = 0;
+  setup_program();
   while ((*token)->kind != TK_EOF) {
     global_local_structs = new_vector();
     Function *func = global_decl(token);

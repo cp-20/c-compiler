@@ -8,9 +8,10 @@
 
 void print_debug_token(char *type, Token **token) {
   if (!f_debug) return;
-  print_debug(COL_BLUE "[parse] " COL_GREEN "[%s] " COL_YELLOW "%s " COL_RESET
+  int len = (*token)->len > 0 ? (*token)->len : 1;
+  print_debug(COL_BLUE "[parse] " COL_GREEN "[%s] " COL_YELLOW "%.*s " COL_RESET
                        "(%d)",
-              type, (*token)->str, (*token)->kind);
+              type, len, (*token)->str, (*token)->kind);
 }
 
 vector *global_locals;

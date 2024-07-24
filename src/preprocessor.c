@@ -180,7 +180,7 @@ char* preprocess(char* input) {
     p++;
   }
 
-  print_debug("%s", output);
+  strncat(output, q, p - q);
 
   print_debug(COL_BLUE "[preprocessor] " COL_RESET "Preprocessing done");
 

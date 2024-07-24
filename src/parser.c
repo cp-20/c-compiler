@@ -514,6 +514,14 @@ Node *assign(Token **token) {
   Node *node = equality(token);
   print_debug("node->offset = %d", node->offset);
   if (consume(token, "=")) node = new_node(ND_ASSIGN, node, assign(token));
+  if (consume(token, "+="))
+    node = new_node(ND_ASSIGN, node, new_node(ND_ADD, node, assign(token)));
+  if (consume(token, "-="))
+    node = new_node(ND_ASSIGN, node, new_node(ND_SUB, node, assign(token)));
+  if (consume(token, "*="))
+    node = new_node(ND_ASSIGN, node, new_node(ND_MUL, node, assign(token)));
+  if (consume(token, "/="))
+    node = new_node(ND_ASSIGN, node, new_node(ND_DIV, node, assign(token)));
   return node;
 }
 

@@ -17,7 +17,7 @@ local_decl     = type ident ("=" ternary)? ("," ident ("=" ternary)? )*
                | struct_decl ("=" "{" (ternary ("," ternary)*)? "}")?
 ternary        = logical ("?" logical ":" logical)?
 logical        = assign ("&&" assign | "||" assign)*
-assign         = equality ("=" assign)?
+assign         = equality (("=" | "+=" | "-=" | "*=" | "/=") assign)?
 equality       = relational ("==" relational | "!=" relational)*
 relational     = add ("<" add | "<=" add | ">" add | ">=" add)*
 add            = mul ("+" mul | "-" mul)*

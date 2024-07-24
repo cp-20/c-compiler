@@ -326,6 +326,12 @@ assert "int main() { print(1 ? 2 : 3 ? 4 : 5); }" "2"
 assert "int main() { print(0 ? 2 : 3 ? 4 : 5); }" "4"
 assert "int main() { print(0 ? 2 : 0 ? 4 : 5); }" "5"
 
+describe "算術代入演算子"
+assert "int main() { int a = 3; a += 5; print(a); }" "8"
+assert "int main() { int a = 3; a -= 5; print(a); }" "-2"
+assert "int main() { int a = 3; a *= 5; print(a); }" "15"
+assert "int main() { int a = 15; a /= 5; print(a); }" "3"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

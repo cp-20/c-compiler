@@ -86,6 +86,9 @@ char* process_define(char* input) {
   char* q = p + 1;
   while (is_alpha(*q) || is_num(*q)) q++;
   int len = q - p;
+  print_debug(COL_BLUE "[preprocessor] " COL_GREEN "[#define] " COL_RESET
+                       "len = %d",
+              len);
   char* name = malloc(len + 1);
   snprintf(name, len + 1, "%s", p);
   print_debug(COL_BLUE "[preprocessor] " COL_GREEN "[#define] " COL_RESET
@@ -109,8 +112,12 @@ char* process_define(char* input) {
   char* body = malloc(r - q + 1);
   snprintf(body, r - q + 1, "%s", q);
 
+  print_debug(COL_BLUE "[preprocessor] " COL_GREEN "[#define] " COL_RESET
+                       "body = %s",
+              body);
+
   char* rest = r++;
-  char* new_output = calloc(strlen(rest) + 1, 1);
+  char* new_output = calloc(1024 * 1024, 1);
   while (*r) {
     // コメントはスキップ
     if (strncmp(r, "//", 2) == 0) {
@@ -139,16 +146,22 @@ char* process_define(char* input) {
     r++;
   }
   strcat(new_output, rest);
-  return new_output;
+  char* new_output_result = calloc(strlen(new_output) + 1, 1);
+  strcat(new_output_result, new_output);
+  free(new_output);
+  return new_output_result;
 }
 
 char* preprocess(char* input) {
+  char* common = "#define NULL ((void*)0)\n#define true 1\n#define false 0\n";
+  char* input_with_common = malloc(strlen(input) + strlen(common) + 1);
+  sprintf(input_with_common, "%s%s", common, input);
+  char* output = malloc(1024 * 1024);
   vector* included_files = new_vector();
-  char* output = calloc(strlen(input) + 1, 1);
 
   print_debug(COL_BLUE "[preprocessor] " COL_RESET "Start preprocessing...");
 
-  char* p = input;
+  char* p = input_with_common;
   char* q = p;
   while (*p) {
     if (strncmp(p, "#include ", 9) == 0) {
@@ -170,6 +183,7 @@ char* preprocess(char* input) {
     if (strncmp(p, "#define ", 8) == 0) {
       print_debug(COL_BLUE "[preprocessor] " COL_RESET
                            "Found #define directive");
+      print_debug(COL_BLUE "[preprocessor] " COL_RESET "%s", p);
       strncat(output, q, p - q);
       p = process_define(p);
       q = p;
@@ -184,7 +198,8 @@ char* preprocess(char* input) {
 
   print_debug(COL_BLUE "[preprocessor] " COL_RESET "Preprocessing done");
 
-  return output;
+  char* output_result = calloc(strlen(output) + 1, 1);
+  strcat(output_result, output);
+  free(output);
+  return output_result;
 }
-
-// うまく処理する (char*のインスタンスの扱い)

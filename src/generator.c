@@ -528,8 +528,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
                 rval_type, r_right_val);
       int r_sub_result = r_register(rctx) - 1;
       r_result_val++;
-      push_code(code, "  %%%d = sub i64 %%%d, %%%d\n", r_sub_result, r_left_val,
-                r_right_val);
+      push_code(code, "  %%%d = sub i64 %%%d, %%%d\n", r_sub_result,
+                r_left_val_int, r_right_val_int);
       int r_sdiv_result = r_register(rctx) - 1;
       r_result_val++;
       push_code(code, "  %%%d = sdiv exact i64 %%%d, 4\n", r_sdiv_result,

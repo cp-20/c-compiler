@@ -10,6 +10,21 @@
 #include "tokenizer.h"
 #include "vector.h"
 
+char* dirname(char* path) {
+  char* p = path + strlen(path) - 1;
+  while (p >= path && *p != '/') p--;
+  if (p < path) return ".";
+  char* output = malloc(p - path + 1);
+  snprintf(output, p - path + 1, "%s", path);
+  return output;
+}
+
+char* join_path(char* dir, char* file) {
+  char* path = malloc(strlen(dir) + strlen(file) + 2);
+  snprintf(path, strlen(dir) + strlen(file) + 2, "%s/%s", dir, file);
+  return path;
+}
+
 char* process_include(char* input, vector* included_files) {
   char* p = input + 9;
   while (*p == ' ') p++;
@@ -28,8 +43,8 @@ char* process_include(char* input, vector* included_files) {
     return NULL;
   }
 
-  char* filename = malloc(q - p + 1);
-  snprintf(filename, q - p + 1, "%s", p);
+  char* including_file = malloc(q - p + 1);
+  snprintf(including_file, q - p + 1, "%s", p);
 
   // システムファイルを真面目にincludeするのは面倒なので諦める
   if (is_system_include) return q + 1;
@@ -37,15 +52,19 @@ char* process_include(char* input, vector* included_files) {
   // 自動で2重includeを防止 (include guard)
   for (int i = 0; i < included_files->size; i++) {
     char* file = vec_at(included_files, i);
-    if (strcmp(file, filename) == 0) {
+    if (strcmp(file, including_file) == 0) {
       return q + 1;
     }
   }
-  vec_push_last(included_files, filename);
+  vec_push_last(included_files, including_file);
 
-  char* included = read_file(filename);
+  // 相対ファイルパスに変換
+  char* current_dir = dirname(filename);
+  char* file = join_path(current_dir, including_file);
+
+  char* included = read_file(file);
   if (!included) {
-    error("File not found: %s", filename);
+    error("File not found: %s", including_file);
     return NULL;
   }
 
@@ -162,8 +181,6 @@ char* preprocess(char* input) {
   }
 
   print_debug("%s", output);
-
-  strncat(output, q, p - q);
 
   print_debug(COL_BLUE "[preprocessor] " COL_RESET "Preprocessing done");
 

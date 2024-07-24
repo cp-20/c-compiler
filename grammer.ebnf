@@ -31,7 +31,7 @@ unary          = "sizeof" (unary | type)
                | "&"* primary
                | "*"* primary
 primary        = num
-               | string
+               | string+
                | "(" expr ")" primary_access*
                | "(" type ")" primary
                | ident ("(" ident ("," ident)* ")")? primary_access*

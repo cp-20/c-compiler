@@ -18,6 +18,7 @@ typedef enum {
   TK_FOR,       // for
   TK_SIZEOF,    // sizeof
   TK_INT,       // int
+  TK_CHAR,      // char
   TK_VOID,      // void
   TK_STRUCT,    // struct
   TK_ENUM,      // enum

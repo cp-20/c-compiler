@@ -598,6 +598,15 @@ Node *primary(Token **token) {
 
   tok = *token;
   if (consume_reserved(token, TK_STRING)) {
+    Token *next_tok = *token;
+    while (consume_reserved(token, TK_STRING)) {
+      Token *new_tok = calloc(1, sizeof(Token));
+      new_tok->str = calloc(1, next_tok->len + tok->len);
+      new_tok->len = sprintf(new_tok->str, "%.*s%.*s", tok->len, tok->str,
+                             next_tok->len, next_tok->str);
+      tok = new_tok;
+      next_tok = *token;
+    }
     Node *node = calloc(1, sizeof(Node));
     node->kind = ND_STRING;
     node->offset = global_strings->size;
@@ -752,6 +761,8 @@ Variable *type(Token **token, bool exclude_ptr) {
     type = TYPE_VOID;
   } else if (consume_reserved(token, TK_INT)) {
     type = TYPE_I32;
+  } else if (consume_reserved(token, TK_CHAR)) {
+    type = TYPE_I8;
   }
   if (type != -1) {
     var = new_variable(-1, type, NULL, 0);

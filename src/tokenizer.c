@@ -151,6 +151,13 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // char型
+    if (strncmp(p, "char", 4) == 0 && !is_alpha(p[4]) && !is_num(p[4])) {
+      cur = new_token(TK_CHAR, cur, p);
+      p += 4;
+      continue;
+    }
+
     // void型
     if (strncmp(p, "void", 4) == 0 && !is_alpha(p[4]) && !is_num(p[4])) {
       cur = new_token(TK_VOID, cur, p);

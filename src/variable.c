@@ -137,21 +137,21 @@ Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
   }
 
   if (lval->type == TYPE_PTR && is_number(rval)) {
-    if (kind == ND_ADD || kind == ND_SUB) {
+    if (kind == ND_ADD || kind == ND_SUB || kind == ND_EQ || kind == ND_NE) {
       return lval;
     }
     error("ポインタ型の変数に対する演算子が不正です");
   }
 
   if (is_number(lval) && rval->type == TYPE_PTR) {
-    if (kind == ND_ADD) {
+    if (kind == ND_ADD || kind == ND_SUB || kind == ND_EQ || kind == ND_NE) {
       return rval;
     }
     error("ポインタ型の変数に対する演算子が不正です");
   }
 
   if (lval->type == TYPE_PTR && rval->type == TYPE_PTR) {
-    if (kind == ND_SUB) {
+    if (kind == ND_SUB || kind == ND_EQ || kind == ND_NE) {
       return lval;
     }
     error("ポインタ型の変数に対する演算子が不正です");

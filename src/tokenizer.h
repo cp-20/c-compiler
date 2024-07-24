@@ -40,9 +40,9 @@ Token *new_token(TokenKind kind, Token *cur, char *str);
 
 bool is_space(char c);
 
-bool is_digit(char c);
+bool is_num(char c);
 
-bool is_alnum(char c);
+bool is_alpha(char c);
 
 bool is_special(char c);
 

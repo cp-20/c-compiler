@@ -246,6 +246,7 @@ Function *global_decl(Token **token) {
       func->name = tok->str;
       func->len = tok->len;
       func->ret = return_type;
+      func->have_va_arg = false;
 
       vector *locals = new_vector();
       int argc = 0;
@@ -256,6 +257,7 @@ Function *global_decl(Token **token) {
       } else {
         while (!consume(token, ")")) {
           if (consume(token, "...")) {
+            func->have_va_arg = true;
             expect(token, ")");
             break;
           }

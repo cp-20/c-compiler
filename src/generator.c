@@ -699,6 +699,10 @@ Code* generate_func(Function* func) {
     push_code(code, "%s noundef %%%d", type, r_arg);
     args[i] = r_arg;
   }
+  if (func->have_va_arg) {
+    if (func->argc > 0) push_code(code, ", ");
+    push_code(code, "...");
+  }
   push_code(code, ") #0 {\n");
 
   r_register(rctx);

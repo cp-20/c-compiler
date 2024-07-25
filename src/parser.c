@@ -752,6 +752,13 @@ Node *primary(Token **token) {
     return node;
   }
 
+  Token *char_tok = *token;
+  if (consume_reserved(token, TK_CHARL)) {
+    Node *node = new_node_num(char_tok->val);
+    node->cast = new_variable(-1, TYPE_I8, NULL, 0);
+    return node;
+  }
+
   return new_node_num(expect_number(token));
 }
 

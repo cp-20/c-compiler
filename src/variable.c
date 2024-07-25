@@ -130,8 +130,10 @@ bool is_number(Variable* var) {
 Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
   if (!is_pointer_like(lval) && !is_pointer_like(rval)) {
     if (!is_same_type(lval, rval)) {
-      error("演算子の左辺値と右辺値の型が一致しません\n左辺: %s, 右辺: %s",
-            get_variable_type_str(lval), get_variable_type_str(rval));
+      error(
+          "演算子の左辺値と右辺値の型が一致しません\n左辺: %s, 右辺: %s, "
+          "演算子: %d",
+          get_variable_type_str(lval), get_variable_type_str(rval), kind);
     }
     return lval;
   }
@@ -157,7 +159,7 @@ Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
 
   if (lval->type == TYPE_PTR && rval->type == TYPE_PTR) {
     if (kind == ND_SUB) {
-      return lval;
+      return new_variable(-1, TYPE_I32, NULL, -1);
     }
     error("ポインタ型の変数に対する演算子が不正です");
   }

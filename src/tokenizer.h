@@ -11,6 +11,7 @@ typedef enum {
   TK_RESERVED,  // 記号
   TK_IDENT,     // 識別子
   TK_NUM,       // 整数トークン
+  TK_CHARL,     // 文字トークン
   TK_RETURN,    // return
   TK_IF,        // if
   TK_ELSE,      // else

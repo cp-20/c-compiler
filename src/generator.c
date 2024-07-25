@@ -162,8 +162,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     char* ptype = get_ptr_variable_type_str(rhs);
     int size = get_variable_size(rhs);
     int r_right_val = r_register(rctx);
-    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val, type,
-              ptype, rhs->reg, size);
+    if (rhs->reg >= 0) {
+      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val,
+                type, ptype, rhs->reg, size);
+    } else {
+      push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_right_val,
+                type, ptype, rhs->len, rhs->name, size);
+    }
     if (node->lhs->offset >= 0) {
       push_code(code, "  store %s %%%d, %s %%%d, align %d\n", type, r_right_val,
                 ptype, lvar->reg, size);
@@ -492,8 +497,22 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   // スタックから2つ取り出す
   Variable* rval = pop_variable(stack);
   Variable* lval = pop_variable(stack);
-  Variable* result_val = get_calc_result_type(node->kind, lval, rval);
 
+  if (lval->type == TYPE_I32 && rval->type == TYPE_I8) {
+    int r_right_val = r_register(rctx);
+    push_code(code, "  %%%d = load i8, i8* %%%d, align 1\n", r_right_val,
+              rval->reg);
+    int r_right_ext_val = r_register(rctx);
+    push_code(code, "  %%%d = sext i8 %%%d to i32\n", r_right_ext_val,
+              r_right_val);
+    int r_right_i32 = r_register(rctx);
+    push_code(code, "  %%%d = alloca i32, align 4\n", r_right_i32);
+    push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n", r_right_ext_val,
+              r_right_i32);
+    rval = new_variable(r_right_i32, TYPE_I32, NULL, 0);
+  }
+
+  Variable* result_val = get_calc_result_type(node->kind, lval, rval);
   char* lval_type = get_variable_type_str(lval);
   char* lval_ptype = get_ptr_variable_type_str(lval);
   int lval_size = get_variable_size(lval);
@@ -520,7 +539,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
               rval_type, rval_ptype, rval->len, rval->name, rval_size);
   }
 
-  if (is_pointer_like(result_val)) {
+  if (is_pointer_like(lval) || is_pointer_like(rval)) {
     int r_result_val = r_register(rctx);
     if (is_pointer_like(lval) && !is_pointer_like(rval)) {
       char* ptr_type = get_variable_type_str(lval->ptr_to);

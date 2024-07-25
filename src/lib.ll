@@ -19,4 +19,5 @@ declare i32 @printf(ptr noundef, ...) #0
 declare i32 @fprintf(ptr noundef, ptr noundef, ...) #0
 declare i32 @vsnprintf(ptr noundef, i64 noundef, ptr noundef, ptr noundef) #0
 declare i32 @sprintf(ptr noundef, ptr noundef, ...) #0
-declare i32 @vprintf(ptr noundef, ptr noundef) #2
+declare i32 @vprintf(ptr noundef, ptr noundef) #0
+declare i32 @vfprintf(ptr noundef, ptr noundef, ptr noundef) #0

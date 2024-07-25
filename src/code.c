@@ -17,7 +17,7 @@ Code* init_code() {
 
 void push_code(Code* code, char* fmt, ...) {
   if (code->size + 1 >= code->capacity) {
-    code->capacity = (code->capacity == 0) ? 1 : code->capacity * 2;
+    code->capacity = ((code->capacity == 0) ? 1 : code->capacity * 2);
     char* new_code = realloc(code->code, code->capacity);
     if (new_code == NULL) {
       error("Failed to allocate memory\n");

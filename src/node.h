@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 #include "code.h"
 #include "node-kind.h"
 #include "variable.h"
@@ -8,13 +10,15 @@
 // 関数定義用のノード
 typedef struct Function Function;
 struct Function {
-  char *name;       // 関数名
-  int len;          // 名前の長さ
-  int argc;         // 引数の数 (localsの最初のargc個が引数)
-  Variable *ret;    // 戻り値の型
-  vector *locals;   // ローカル変数のリスト
-  vector *structs;  // 構造体のリスト
-  vector *body;     // 関数の本体
+  char *name;        // 関数名
+  int len;           // 名前の長さ
+  int argc;          // 引数の数 (localsの最初のargc個が引数)
+  bool have_va_arg;  // 可変長引数を持つか
+  bool is_proto;     // プロトタイプ宣言かどうか
+  Variable *ret;     // 戻り値の型
+  vector *locals;    // ローカル変数のリスト
+  vector *structs;   // 構造体のリスト
+  vector *body;      // 関数の本体
 };
 
 // ND_CALLのときの型

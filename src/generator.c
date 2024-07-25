@@ -74,12 +74,20 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   print_debug(COL_BLUE "[generator]" COL_RESET " generate_node %d", node->kind);
 
   Code* code = init_code();
+  push_code(code, "  ; generate %d -> ", node->kind);
+  merge_code(code, print_node(node));
+  push_code(code, "\n");
 
   if (node->kind == ND_NUM) {
     // 数字の場合はそのままスタックに積む
     int r_num = r_register(rctx);
     push_code(code, "  %%%d = alloca i32, align 4\n", r_num);
-    push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val, r_num);
+    if (node->cast != NULL && node->cast->type == TYPE_PTR &&
+        node->cast->ptr_to->type == TYPE_VOID && node->val == 0) {
+      push_code(code, "  store ptr null, ptr %%%d, align 4\n", r_num);
+    } else {
+      push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val, r_num);
+    }
     if (node->cast != NULL) {
       push_variable_with_cast_if_needed(stack, with_reg(node->cast, r_num),
                                         node->cast);
@@ -544,12 +552,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       r_result_val++;
       push_code(code, "  %%%d = sub i64 %%%d, %%%d\n", r_sub_result,
                 r_left_val_int, r_right_val_int);
-      int r_sdiv_result = r_register(rctx) - 1;
-      r_result_val++;
-      push_code(code, "  %%%d = sdiv exact i64 %%%d, 4\n", r_sdiv_result,
-                r_left_val);
       push_code(code, "  %%%d = trunc i64 %%%d to i32\n", r_result_val,
-                r_sdiv_result);
+                r_sub_result);
     }
     int r_result = r_register(rctx);
     push_code(code, "  %%%d = alloca %s, align %d\n", r_result, val_type,
@@ -597,8 +601,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     }
     int r_middle = r_register(rctx) - 1;
     r_result_val++;
-    push_code(code, "  %%%d = icmp %s %s %%%d, %%%d\n", r_middle, op, val_type,
-              r_left_val, r_right_val);
+    if (is_pointer_like(lval) || is_pointer_like(rval)) {
+      push_code(code, "  %%%d = icmp %s ptr %%%d, %%%d\n", r_middle, op,
+                r_left_val, r_right_val);
+    } else {
+      push_code(code, "  %%%d = icmp %s %s %%%d, %%%d\n", r_middle, op,
+                val_type, r_left_val, r_right_val);
+    }
     push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val, r_middle,
               val_type);
   } else if (node->kind == ND_AND || node->kind == ND_OR) {
@@ -688,8 +697,12 @@ Code* generate_func(Function* func) {
   }
 
   char* ret_type = get_variable_type_str(func->ret);
-  push_code(code, "define dso_local %s @%.*s(", ret_type, func->len,
-            func->name);
+  if (func->is_proto) {
+    push_code(code, "declare ");
+  } else {
+    push_code(code, "define ");
+  }
+  push_code(code, "dso_local %s @%.*s(", ret_type, func->len, func->name);
   int args[func->argc];
   for (int i = 0; i < func->argc; i++) {
     if (i != 0) push_code(code, ", ");
@@ -703,7 +716,14 @@ Code* generate_func(Function* func) {
     if (func->argc > 0) push_code(code, ", ");
     push_code(code, "...");
   }
-  push_code(code, ") #0 {\n");
+  push_code(code, ") #0");
+
+  if (func->is_proto) {
+    push_code(code, "\n");
+    return code;
+  }
+
+  push_code(code, " {\n");
 
   r_register(rctx);
 

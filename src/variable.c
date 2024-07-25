@@ -136,22 +136,27 @@ Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
     return lval;
   }
 
+  if (kind == ND_EQ || kind == ND_NE || kind == ND_LT || kind == ND_LE ||
+      kind == ND_GT || kind == ND_GE) {
+    return new_variable(-1, TYPE_I32, NULL, -1);
+  }
+
   if (lval->type == TYPE_PTR && is_number(rval)) {
-    if (kind == ND_ADD || kind == ND_SUB || kind == ND_EQ || kind == ND_NE) {
+    if (kind == ND_ADD || kind == ND_SUB) {
       return lval;
     }
     error("ポインタ型の変数に対する演算子が不正です");
   }
 
   if (is_number(lval) && rval->type == TYPE_PTR) {
-    if (kind == ND_ADD || kind == ND_SUB || kind == ND_EQ || kind == ND_NE) {
+    if (kind == ND_ADD || kind == ND_SUB) {
       return rval;
     }
     error("ポインタ型の変数に対する演算子が不正です");
   }
 
   if (lval->type == TYPE_PTR && rval->type == TYPE_PTR) {
-    if (kind == ND_SUB || kind == ND_EQ || kind == ND_NE) {
+    if (kind == ND_SUB) {
       return lval;
     }
     error("ポインタ型の変数に対する演算子が不正です");

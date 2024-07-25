@@ -146,6 +146,17 @@ Program *program(Token **token) {
     global_local_structs = new_vector();
     Function *func = global_decl(token);
     if (func == NULL) continue;
+    for (int i = 0; i < code->size; i++) {
+      Function *f = vec_at(code, i);
+      if (f->len == func->len && !memcmp(f->name, func->name, f->len)) {
+        if (f->is_proto && !func->is_proto) {
+          vec_remove(code, i);
+          break;
+        }
+        error_at((*token)->str, "関数が二重定義されています");
+      }
+    }
+
     vec_push_last(code, func);
     func->structs = global_local_structs;
   }
@@ -288,17 +299,17 @@ Function *global_decl(Token **token) {
       func->locals = locals;
       global_locals = locals;
       if (consume(token, "{")) {
+        func->is_proto = false;
         vector *stmts = new_vector();
         while (!consume(token, "}")) {
           vec_push_last(stmts, stmt(token));
         }
         func->body = stmts;
-        return func;
       } else {
-        // プロトタイプ宣言なら何もしない
+        func->is_proto = true;
         expect(token, ";");
-        return NULL;
       }
+      return func;
     }
 
     // グローバル変数の宣言

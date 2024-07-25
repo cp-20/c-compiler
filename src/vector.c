@@ -58,6 +58,13 @@ void *vec_at(vector *v, int index) {
   return v->data[index];
 }
 
+void *vec_set(vector *v, int index, void *element) {
+  if (index < 0 || index >= v->size) return NULL;
+  void *old = v->data[index];
+  v->data[index] = element;
+  return old;
+}
+
 void *vec_first(vector *v) {
   if (v->size == 0) return NULL;
   return v->data[0];
@@ -66,6 +73,16 @@ void *vec_first(vector *v) {
 void *vec_last(vector *v) {
   if (v->size == 0) return NULL;
   return v->data[v->size - 1];
+}
+
+void *vec_remove(vector *v, int index) {
+  if (index < 0 || index >= v->size) return NULL;
+  void *element = v->data[index];
+  for (int i = index; i < v->size - 1; i++) {
+    v->data[i] = v->data[i + 1];
+  }
+  v->size--;
+  return element;
 }
 
 void vec_free(vector *v) {

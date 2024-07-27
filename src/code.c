@@ -5,19 +5,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "debug.h"
 #include "error.h"
+
+#define CODE_SIZE_UNIT 2048
 
 Code* init_code() {
   Code* code = malloc(sizeof(Code));
-  code->code = calloc(65536, sizeof(char));
+  code->code = calloc(CODE_SIZE_UNIT, sizeof(char));
   code->size = 0;
-  code->capacity = 65536;
+  code->capacity = CODE_SIZE_UNIT;
   return code;
 }
 
 void push_code(Code* code, char* fmt, ...) {
-  if (code->size + 1 >= code->capacity) {
-    code->capacity = ((code->capacity == 0) ? 1 : code->capacity * 2);
+  if (code->size >= code->capacity - CODE_SIZE_UNIT) {
+    code->capacity += CODE_SIZE_UNIT;
     char* new_code = realloc(code->code, code->capacity);
     if (new_code == NULL) {
       error("Failed to allocate memory\n");
@@ -32,6 +35,8 @@ void push_code(Code* code, char* fmt, ...) {
       vsnprintf(code->code + code->size, code->capacity - code->size, fmt, ap);
   if (chars_written < 0) {
     error("Failed to write to code buffer\n");
+  } else if (code->size + chars_written >= code->capacity) {
+    error("Code buffer overflow\n");
   }
 
   code->size += chars_written;

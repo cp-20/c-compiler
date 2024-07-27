@@ -183,7 +183,6 @@ char* preprocess(char* input) {
     if (strncmp(p, "#define ", 8) == 0) {
       print_debug(COL_BLUE "[preprocessor] " COL_RESET
                            "Found #define directive");
-      print_debug(COL_BLUE "[preprocessor] " COL_RESET "%s", p);
       strncat(output, q, p - q);
       p = process_define(p);
       q = p;

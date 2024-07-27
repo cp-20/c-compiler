@@ -84,6 +84,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   push_code(code, "\n");
 
   // ブロックスコープを作る
+  vector* pop_local_list = new_vector();
   if (node->kind == ND_BLOCK || node->kind == ND_FOR) {
     print_debug(COL_BLUE "[generator] " COL_GREEN "[%s] " COL_RESET
                          "node->locals->size = %d",
@@ -94,6 +95,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       int size = get_variable_size(lvar->var);
       int r_var = r_register(rctx);
       push_code(code, "  %%%d = alloca %s, align %d\n", r_var, type, size);
+      vec_push_last(pop_local_list, locals_r[lvar->offset]);
       locals_r[lvar->offset] = with_reg(lvar->var, r_var);
     }
   }
@@ -147,7 +149,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   } else if (node->kind == ND_LVAR) {
     Variable* var = get_variable(locals_r, node->offset);
     print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_LVAR] " COL_RESET
-                         "generate var");
+                         "generate var %d (%s)",
+                node->offset, get_variable_type_str(var));
     if (var->value != NULL) {
       merge_code(code, generate_node(new_node_num(*var->value), stack, locals_r,
                                      rctx));
@@ -377,6 +380,14 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     vec_pop(break_labels);
     free(r_continue_label_ptr);
     free(r_break_label_ptr);
+
+    // ブロックスコープ抜けた時の処理
+    for (int i = 0; i < pop_local_list->size; i++) {
+      LVar* lvar = vec_at(node->locals, i);
+      locals_r[lvar->offset] = vec_at(pop_local_list, i);
+    }
+    vec_free(pop_local_list);
+
     return code;
   } else if (node->kind == ND_BLOCK || node->kind == ND_GROUP) {
     print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_BLOCK] " COL_RESET
@@ -386,6 +397,15 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     for (int i = 0; i < node->stmts->size; i++) {
       Node* stmt = vec_at(node->stmts, i);
       merge_code(code, generate_node(stmt, stack, locals_r, rctx));
+    }
+
+    // ブロックスコープ抜けた時の処理
+    if (node->kind == ND_BLOCK) {
+      for (int i = 0; i < pop_local_list->size; i++) {
+        LVar* lvar = vec_at(node->locals, i);
+        locals_r[lvar->offset] = vec_at(pop_local_list, i);
+      }
+      vec_free(pop_local_list);
     }
     return code;
   } else if (node->kind == ND_CALL) {
@@ -644,6 +664,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
               rval_type, rval_ptype, rval->len, rval->name, rval_size);
   }
 
+  print_debug(COL_BLUE
+              "[generator] " COL_GREEN "[ND_ADD] " COL_RESET
+              "lval->type = %s, rval->type = %s, result_val->type = %s",
+              lval_type, rval_type, val_type);
+
   if (is_pointer_like(lval) || is_pointer_like(rval)) {
     int r_result_val = r_register(rctx);
     if (is_pointer_like(lval) && !is_pointer_like(rval)) {
@@ -839,8 +864,9 @@ Code* generate_func(Function* func) {
   Variable** locals_r = calloc(1024, sizeof(Variable*));
   for (int i = 0; i < func->argc; i++) {
     LVar* arg = vec_at(func->locals, i);
-    print_debug(COL_BLUE "[generator]" COL_RESET " func->locals[%d] = %.*s", i,
-                arg->len, arg->name);
+    print_debug(COL_BLUE "[generator]" COL_RESET
+                         " func->locals[%d] = %.*s (%s)",
+                i, arg->len, arg->name, get_variable_type_str(arg->var));
     char* var_type = get_variable_type_str(arg->var);
     char* var_ptype = get_ptr_variable_type_str(arg->var);
     int var_size = get_variable_size(arg->var);
@@ -853,8 +879,9 @@ Code* generate_func(Function* func) {
   }
   for (int i = func->argc; i < func->locals->size; i++) {
     LVar* lvar = vec_at(func->locals, i);
-    print_debug(COL_BLUE "[generator]" COL_RESET " func->locals[%d] = %.*s", i,
-                lvar->len, lvar->name);
+    print_debug(COL_BLUE "[generator]" COL_RESET
+                         " func->locals[%d] = %.*s (%s)",
+                i, lvar->len, lvar->name, get_variable_type_str(lvar->var));
     char* var_type = get_variable_type_str(lvar->var);
     int var_size = get_variable_size(lvar->var);
     int r = r_register(rctx);

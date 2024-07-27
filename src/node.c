@@ -2,8 +2,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "code.h"
+#include "debug.h"
 #include "error.h"
 #include "variable.h"
 
@@ -27,7 +29,9 @@ Code *print_node(Node *node) {
   if (node == NULL) return code;
 
   if (node->cast != NULL) {
-    push_code(code, "(%s)", get_variable_type_str(node->cast));
+    char *cast_type = get_variable_type_str(node->cast);
+    push_code(code, "(%s)", cast_type);
+    free(cast_type);
   }
 
   if (node->kind == ND_NUM) {
@@ -164,6 +168,31 @@ Code *print_node(Node *node) {
     return code;
   }
 
+  if (node->kind == ND_SWITCH) {
+    push_code(code, "switch (");
+    merge_code(code, print_node(node->lhs));
+    push_code(code, ") {");
+    for (int i = 0; i < node->stmts->size; i++) {
+      merge_code(code, print_node(vec_at(node->stmts, i)));
+    }
+    push_code(code, "}");
+    return code;
+  }
+
+  if (node->kind == ND_CASE) {
+    push_code(code, "case ");
+    merge_code(code, print_node(node->lhs));
+    push_code(code, ": ");
+    merge_code(code, print_node(node->rhs));
+    return code;
+  }
+
+  if (node->kind == ND_DEFAULT) {
+    push_code(code, "default: ");
+    merge_code(code, print_node(node->rhs));
+    return code;
+  }
+
   push_code(code, "(");
   merge_code(code, print_node(node->lhs));
   if (node->kind == ND_ADD) {
@@ -251,6 +280,12 @@ char *get_node_kind_name(NodeKind kind) {
       return "ND_CONTINUE";
     case ND_BREAK:
       return "ND_BREAK";
+    case ND_SWITCH:
+      return "ND_SWITCH";
+    case ND_CASE:
+      return "ND_CASE";
+    case ND_DEFAULT:
+      return "ND_DEFAULT";
     case ND_BLOCK:
       return "ND_BLOCK";
     case ND_GROUP:
@@ -267,3 +302,92 @@ char *get_node_kind_name(NodeKind kind) {
       return "UNKNOWN";
   }
 };
+
+void free_call(Call *call) {
+  if (call == NULL) return;
+  free(call->name);
+  free_variable(call->ret);
+  for (int i = 0; i < call->args->size; i++) {
+    free_node(vec_at(call->args, i));
+  }
+  vec_free(call->args);
+  free(call);
+}
+
+void free_node(Node *node) {
+  if (node == NULL) return;
+  free_node(node->lhs);
+  free_node(node->rhs);
+  free_node(node->extra);
+  free_node(node->extra2);
+  free_call(node->call);
+  if (node->stmts != NULL) {
+    for (int i = 0; i < node->stmts->size; i++) {
+      free_node(vec_at(node->stmts, i));
+    }
+    vec_free(node->stmts);
+  }
+  free(node);
+}
+
+void free_function(Function *func) {
+  if (func == NULL) return;
+  free(func->name);
+  free_variable(func->ret);
+  for (int i = 0; i < func->locals->size; i++) {
+    free_lvar(vec_at(func->locals, i));
+  }
+  vec_free(func->locals);
+  for (int i = 0; i < func->structs->size; i++) {
+    free_variable(vec_at(func->structs, i));
+  }
+  vec_free(func->structs);
+  for (int i = 0; i < func->body->size; i++) {
+    free_node(vec_at(func->body, i));
+  }
+  vec_free(func->body);
+  free(func);
+}
+
+Call *copy_call(Call *call) {
+  if (call == NULL) return NULL;
+  Call *new_call = calloc(1, sizeof(Call));
+  new_call->name = calloc(call->len + 1, sizeof(char));
+  memcpy(new_call->name, call->name, call->len);
+  new_call->len = call->len;
+  new_call->ret = copy_var(call->ret);
+  if (call->args != NULL) {
+    new_call->args = new_vector();
+    for (int i = 0; i < call->args->size; i++) {
+      vec_push_last(new_call->args, copy_node(vec_at(call->args, i)));
+    }
+  }
+  return new_call;
+}
+
+Node *copy_node(Node *node) {
+  if (node == NULL) return NULL;
+  Node *new_node = calloc(1, sizeof(Node));
+  new_node->kind = node->kind;
+  new_node->lhs = copy_node(node->lhs);
+  new_node->rhs = copy_node(node->rhs);
+  new_node->extra = copy_node(node->extra);
+  new_node->extra2 = copy_node(node->extra2);
+  new_node->call = copy_call(node->call);
+  if (node->stmts != NULL) {
+    new_node->stmts = new_vector();
+    for (int i = 0; i < node->stmts->size; i++) {
+      vec_push_last(new_node->stmts, copy_node(vec_at(node->stmts, i)));
+    }
+  }
+  if (node->locals != NULL) {
+    new_node->locals = new_vector();
+    for (int i = 0; i < node->locals->size; i++) {
+      vec_push_last(new_node->locals, copy_lvar(vec_at(node->locals, i)));
+    }
+  }
+  new_node->cast = copy_var(node->cast);
+  new_node->val = node->val;
+  new_node->offset = node->offset;
+  return new_node;
+}

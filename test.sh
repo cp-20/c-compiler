@@ -338,6 +338,10 @@ assert "int main() { int a = 0; for (int i = 0; i < 10; i++) { if (i == 5) break
 assert "int main() { int a = 0; int i = 10; while(i--) { if (i == 5) continue; a++; } print(a); }" "9"
 assert "int main() { int a = 0; int i = 10; while(i--) { if (i == 5) break; a++; } print(a); }" "4"
 
+describe "switch"
+assert "int main() { int a = 3; switch (a) { case 1: print(21); break; case 2: print(22); break; case 3: print(23); break; } }" "23"
+assert "int main() { int a = 10; switch (a) { case 1: print(31); break; case 2: print(32); break; case 3: print(33); break; default: print(34); break; } }" "34"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

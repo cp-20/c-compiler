@@ -19,6 +19,9 @@ typedef enum {
   TK_FOR,       // for
   TK_CONTINUE,  // continue
   TK_BREAK,     // break
+  TK_SWITCH,    // switch
+  TK_CASE,      // case
+  TK_DEFAULT,   // default
   TK_SIZEOF,    // sizeof
   TK_INT,       // int
   TK_CHAR,      // char

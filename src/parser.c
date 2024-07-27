@@ -7,7 +7,7 @@
 #include "vector.h"
 
 void print_debug_token(char *type, Token **token) {
-  if (!f_debug) return;
+  if (true) return;
   int len = (*token)->len > 0 ? (*token)->len : 1;
   char *line = (*token)->str;
   char *line_start = line;
@@ -108,18 +108,21 @@ void setup_program() {
 
   // stderr
   LVar *var_stderr = calloc(1, sizeof(LVar));
-  var_stderr->name = "stderr";
+  var_stderr->name = calloc(7, sizeof(char));
+  sprintf(var_stderr->name, "stderr");
   var_stderr->len = 6;
   var_stderr->offset = -global_globals->size - 1;
-  var_stderr->var = void_ptr;
-  var_stderr->var->name = "stderr";
+  var_stderr->var = copy_var(void_ptr);
+  var_stderr->var->name = calloc(7, sizeof(char));
+  sprintf(var_stderr->var->name, "stderr");
   var_stderr->var->len = 6;
   var_stderr->var->reg = -2;
   vec_push_last(global_globals, var_stderr);
 
   // va_list
   Variable *__va_list_tag = new_variable(-1, TYPE_STRUCT, NULL, 0);
-  __va_list_tag->name = "__va_list_tag";
+  __va_list_tag->name = calloc(14, sizeof(char));
+  sprintf(__va_list_tag->name, "__va_list_tag");
   __va_list_tag->len = 13;
   __va_list_tag->fields = new_vector();
   LVar *i32 = calloc(1, sizeof(LVar));
@@ -127,28 +130,38 @@ void setup_program() {
   vec_push_last(__va_list_tag->fields, i32);
   vec_push_last(__va_list_tag->fields, i32);
   LVar *ptr = calloc(1, sizeof(LVar));
-  ptr->var = void_ptr;
+  ptr->var = copy_var(void_ptr);
   vec_push_last(__va_list_tag->fields, ptr);
   vec_push_last(__va_list_tag->fields, ptr);
   vec_push_last(global_structs, __va_list_tag);
   Variable *var_va_list = new_variable(-1, TYPE_ARRAY, __va_list_tag, 1);
-  var_va_list->name = "va_list";
+  var_va_list->name = calloc(8, sizeof(char));
+  sprintf(var_va_list->name, "va_list");
   var_va_list->len = 7;
   vec_push_last(global_typedefs, var_va_list);
 
   // bool
   Variable *var_bool = new_variable(-1, TYPE_I32, NULL, 0);
-  var_bool->name = "bool";
+  var_bool->name = calloc(5, sizeof(char));
+  sprintf(var_bool->name, "bool");
   var_bool->len = 4;
   vec_push_last(global_typedefs, var_bool);
+
+  free_variable(void_ptr);
 };
 
 char *function_conversion(char *name) {
   if (strcmp(name, "va_end") == 0) {
-    return "llvm.va_end";
+    char *alt = calloc(12, sizeof(char));
+    sprintf(alt, "llvm.va_end");
+    free(name);
+    return alt;
   }
   if (strcmp(name, "va_start") == 0) {
-    return "llvm.va_start";
+    char *alt = calloc(14, sizeof(char));
+    sprintf(alt, "llvm.va_start");
+    free(name);
+    return alt;
   }
   return name;
 }
@@ -205,11 +218,13 @@ Function *global_decl(Token **token) {
     LVar *lvar = find_lvar_from_vector(tok, global_globals);
     if (lvar == NULL) {
       LVar *lvar = calloc(1, sizeof(LVar));
-      lvar->name = tok->str;
+      lvar->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(lvar->name, tok->str, tok->len);
       lvar->len = tok->len;
       lvar->offset = -global_globals->size - 1;
       lvar->var = return_type;
-      lvar->var->name = tok->str;
+      lvar->var->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(lvar->var->name, tok->str, tok->len);
       lvar->var->len = tok->len;
       lvar->var->reg = -2;
       vec_push_last(global_globals, lvar);
@@ -237,7 +252,8 @@ Function *global_decl(Token **token) {
 
     Variable *var = find_typedef(tok);
     var = new_variable(-1, TYPE_I32, NULL, 0);
-    var->name = tok->str;
+    var->name = calloc(tok->len + 1, sizeof(char));
+    memcpy(var->name, tok->str, tok->len);
     var->len = tok->len;
     vec_push_last(global_typedefs, var);
 
@@ -265,7 +281,8 @@ Function *global_decl(Token **token) {
         error_at(tok->str, "変数が二重定義されています");
       }
       var = return_type;
-      var->name = tok->str;
+      var->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(var->name, tok->str, tok->len);
       var->len = tok->len;
       vec_push_last(global_typedefs, var);
       expect(token, ";");
@@ -275,7 +292,8 @@ Function *global_decl(Token **token) {
     // 関数の定義
     if (consume(token, "(")) {
       Function *func = calloc(1, sizeof(Function));
-      func->name = tok->str;
+      func->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(func->name, tok->str, tok->len);
       func->len = tok->len;
       func->ret = return_type;
       func->have_va_arg = false;
@@ -307,7 +325,8 @@ Function *global_decl(Token **token) {
             error_at(tok->str, "変数が二重定義されています");
           }
           lvar = calloc(1, sizeof(LVar));
-          lvar->name = tok->str;
+          lvar->name = calloc(tok->len + 1, sizeof(char));
+          memcpy(lvar->name, tok->str, tok->len);
           lvar->len = tok->len;
           lvar->offset = locals->size;
           lvar->var = argument_type;
@@ -347,11 +366,13 @@ Function *global_decl(Token **token) {
         }
       }
       lvar = calloc(1, sizeof(LVar));
-      lvar->name = tok->str;
+      lvar->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(lvar->name, tok->str, tok->len);
       lvar->len = tok->len;
       lvar->offset = -global_globals->size - 1;
       lvar->var = return_type;
-      lvar->var->name = tok->str;
+      lvar->var->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(lvar->var->name, tok->str, tok->len);
       lvar->var->len = tok->len;
       lvar->var->reg = -1;
       vec_push_last(global_globals, lvar);
@@ -463,6 +484,58 @@ Node *stmt(Token **token) {
     return node;
   }
 
+  if (consume_reserved(token, TK_SWITCH)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_SWITCH;
+    expect(token, "(");
+    node->lhs = expr(token);
+    expect(token, ")");
+    expect(token, "{");
+    vector *cases = new_vector();
+    while (!consume(token, "}")) {
+      bool is_case = consume_reserved(token, TK_CASE);
+      if (!is_case) {
+        if (!consume_reserved(token, TK_DEFAULT)) {
+          error_at((*token)->str, "caseまたはdefaultではありません");
+        };
+      }
+
+      Node *case_node = calloc(1, sizeof(Node));
+      case_node->kind = is_case ? ND_CASE : ND_DEFAULT;
+      if (is_case) {
+        case_node->lhs = constant(token);
+      }
+      expect(token, ":");
+
+      vector *stmts = new_vector();
+      if (consume(token, "{")) {
+        while (!consume(token, "}")) {
+          vec_push_last(stmts, stmt(token));
+        }
+        case_node->rhs = new_node(ND_BLOCK, NULL, NULL);
+      } else {
+        while ((*token)->kind != TK_CASE && (*token)->kind != TK_DEFAULT &&
+               !((*token)->kind == TK_RESERVED && (*token)->str[0] == '}' &&
+                 (*token)->len == 1)) {
+          vec_push_last(stmts, stmt(token));
+        }
+        case_node->rhs = new_node(ND_GROUP, NULL, NULL);
+      }
+      case_node->rhs->stmts = stmts;
+      if (is_case) {
+        vec_push_last(cases, case_node);
+      } else {
+        if (node->rhs != NULL) {
+          error_at((*token)->str, "defaultは一度しか使えません");
+        }
+        node->rhs = case_node;
+      }
+    }
+    node->stmts = cases;
+
+    return node;
+  }
+
   node = expr(token);
   expect(token, ";");
   return node;
@@ -492,11 +565,12 @@ Node *local_decl(Token **token) {
       error_at(tok->str, "変数が二重定義されています");
     }
     lvar = calloc(1, sizeof(LVar));
-    lvar->name = tok->str;
+    lvar->name = calloc(tok->len + 1, sizeof(char));
+    memcpy(lvar->name, tok->str, tok->len);
     lvar->len = tok->len;
     lvar->offset = get_offset();
 
-    Variable *var = var_type;
+    Variable *var = copy_var(var_type);
     for (int nest = ref_nest; nest > 0; nest--) {
       Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
       var = ptr;
@@ -517,8 +591,8 @@ Node *local_decl(Token **token) {
         int array_element = 0;
         while (!consume(token, "}")) {
           Node *val = ternary(token);
-          Node *lvar_index_node =
-              new_node(ND_ADD, lvar_node, new_node_num(array_element));
+          Node *lvar_index_node = new_node(ND_ADD, copy_node(lvar_node),
+                                           new_node_num(array_element));
           Node *lvar_deref_node = new_node(ND_DEREF, lvar_index_node, NULL);
           Node *assign_node = new_node(ND_ASSIGN, lvar_deref_node, val);
           vec_push_last(stmts, assign_node);
@@ -526,6 +600,7 @@ Node *local_decl(Token **token) {
           if (consume(token, "}")) break;
           expect(token, ",");
         }
+        free_node(lvar_node);
         if (array_size >= 0 && array_size != array_element) {
           error_at(tok->str, "配列の宣言サイズと初期化サイズが一致しません");
         }
@@ -551,14 +626,15 @@ Node *local_decl(Token **token) {
           int array_element = 0;
           while (!consume(token, "}")) {
             Node *val = ternary(token);
-            Node *lvar_index_node =
-                new_node(ND_ACCESS, lvar_node, new_node_num(array_element));
+            Node *lvar_index_node = new_node(ND_ACCESS, copy_node(lvar_node),
+                                             new_node_num(array_element));
             Node *assign_node = new_node(ND_ASSIGN, lvar_index_node, val);
             vec_push_last(stmts, assign_node);
             array_element++;
             if (consume(token, "}")) break;
             expect(token, ",");
           }
+          free_node(lvar_node);
         } else {
           Node *init_node = new_node(ND_ASSIGN, lvar_node, expr(token));
           vec_push_last(stmts, init_node);
@@ -567,6 +643,7 @@ Node *local_decl(Token **token) {
     }
   } while (consume(token, ","));
   node->stmts = stmts;
+  free_variable(var_type);
   return node;
 }
 
@@ -605,13 +682,17 @@ Node *assign(Token **token) {
   Node *node = equality(token);
   if (consume(token, "=")) node = new_node(ND_ASSIGN, node, assign(token));
   if (consume(token, "+="))
-    node = new_node(ND_ASSIGN, node, new_node(ND_ADD, node, assign(token)));
+    node = new_node(ND_ASSIGN, node,
+                    new_node(ND_ADD, copy_node(node), assign(token)));
   if (consume(token, "-="))
-    node = new_node(ND_ASSIGN, node, new_node(ND_SUB, node, assign(token)));
+    node = new_node(ND_ASSIGN, node,
+                    new_node(ND_SUB, copy_node(node), assign(token)));
   if (consume(token, "*="))
-    node = new_node(ND_ASSIGN, node, new_node(ND_MUL, node, assign(token)));
+    node = new_node(ND_ASSIGN, node,
+                    new_node(ND_MUL, copy_node(node), assign(token)));
   if (consume(token, "/="))
-    node = new_node(ND_ASSIGN, node, new_node(ND_DIV, node, assign(token)));
+    node = new_node(ND_ASSIGN, node,
+                    new_node(ND_DIV, copy_node(node), assign(token)));
   return node;
 }
 
@@ -692,11 +773,13 @@ Node *unary(Token **token) {
     return new_node(ND_EQ, primary(token), new_node_num(0));
   if (consume(token, "++")) {
     Node *node = primary(token);
-    return new_node(ND_ASSIGN, node, new_node(ND_ADD, node, new_node_num(1)));
+    return new_node(ND_ASSIGN, node,
+                    new_node(ND_ADD, copy_node(node), new_node_num(1)));
   }
   if (consume(token, "--")) {
     Node *node = primary(token);
-    return new_node(ND_ASSIGN, node, new_node(ND_SUB, node, new_node_num(1)));
+    return new_node(ND_ASSIGN, node,
+                    new_node(ND_SUB, copy_node(node), new_node_num(1)));
   }
   bool is_ref = consume(token, "&");
   bool is_deref = consume(token, "*");
@@ -755,7 +838,7 @@ Node *primary(Token **token) {
     Node *node = calloc(1, sizeof(Node));
 
     if (consume(token, "(")) {
-      char *name = calloc(1, tok->len + 1);
+      char *name = calloc(tok->len + 1, sizeof(char));
       memcpy(name, tok->str, tok->len);
       char *call_name = function_conversion(name);
       node->kind = ND_CALL;
@@ -874,7 +957,7 @@ Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
       return NULL;
     }
     tok = calloc(1, sizeof(Token));
-    tok->str = calloc(1, 16);
+    tok->str = calloc(16, sizeof(char));
     sprintf(tok->str, "anon.%d", anon_structs_index++);
     tok->len = strlen(tok->str);
   }
@@ -891,7 +974,8 @@ Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
     }
     var->type = TYPE_STRUCT;
     var->fields = new_vector();
-    var->name = tok->str;
+    var->name = calloc(tok->len + 1, sizeof(char));
+    memcpy(var->name, tok->str, tok->len);
     var->len = tok->len;
     var->reg = 0;
     if (!is_declare) {
@@ -910,7 +994,8 @@ Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
         return NULL;
       }
       LVar *field = calloc(1, sizeof(LVar));
-      field->name = tok->str;
+      field->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(field->name, tok->str, tok->len);
       field->len = tok->len;
       field->var = field_type;
       vec_push_last(var->fields, field);
@@ -924,7 +1009,8 @@ Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
       }
 
       var = new_variable(-1, TYPE_STRUCT, NULL, 0);
-      var->name = tok->str;
+      var->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(var->name, tok->str, tok->len);
       var->len = tok->len;
       var->reg = -1;
       vec_push_last(global_structs, var);
@@ -947,7 +1033,8 @@ bool enum_decl(Token **token) {
         error_at(tok->str, "変数が二重定義されています");
       }
       lvar = calloc(1, sizeof(LVar));
-      lvar->name = tok->str;
+      lvar->name = calloc(tok->len + 1, sizeof(char));
+      memcpy(lvar->name, tok->str, tok->len);
       lvar->len = tok->len;
       lvar->offset = -global_globals->size - 1;
       lvar->var = new_variable(-1, TYPE_I32, NULL, 0);
@@ -987,7 +1074,7 @@ Variable *type(Token **token, bool exclude_ptr, bool is_typedef) {
   }
 
   if (var == NULL) {
-    var = parse_struct(token, false, is_typedef);
+    var = copy_var(parse_struct(token, false, is_typedef));
   }
 
   if (!exclude_ptr) {
@@ -1000,6 +1087,23 @@ Variable *type(Token **token, bool exclude_ptr, bool is_typedef) {
   }
 
   return var;
+}
+
+Node *constant(Token **token) {
+  print_debug_token("constant", token);
+
+  Token *tok = consume_ident(token);
+  if (tok != NULL) {
+    LVar *lvar = find_lvar_from_vector(tok, global_globals);
+    if (lvar == NULL) {
+      error_at(tok->str, "未定義の変数です");
+    }
+    if (lvar->var->value == NULL) {
+      error_at(tok->str, "定数ではありません");
+    }
+    return new_node_num(*lvar->var->value);
+  }
+  return new_node_num(expect_number(token));
 }
 
 Program *parse(Token *token) { return program(&token); }

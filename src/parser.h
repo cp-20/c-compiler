@@ -21,15 +21,6 @@ typedef struct Program {
   vector *strings;    // 文字列のリスト
 } Program;
 
-// ローカル変数の型
-typedef struct LVar LVar;
-struct LVar {
-  char *name;     // 変数の名前
-  int len;        // 名前の長さ
-  int offset;     // 何番目に宣言された変数か (0-indexed)
-  Variable *var;  // 変数の情報
-};
-
 void print_debug_token(char *type, Token **token);
 
 Variable *find_struct_from_vector(Token *tok, vector *structs);
@@ -66,5 +57,6 @@ Node *parse_primary_access(Token **token, Node *node);
 Variable *parse_struct(Token **token, bool name_required, bool is_typedef);
 bool enum_decl(Token **token);
 Variable *type(Token **token, bool exclude_ptr, bool is_typedef);
+Node *constant(Token **token);
 
 Program *parse(Token *token);

@@ -38,7 +38,7 @@ struct Node {
   Node *extra;    // 追加のノード
   Node *extra2;   // 追加のノード
   Call *call;     // kindがND_CALLのときのみ使う
-  vector *stmts;  // 後に続くstatementのリスト
+  vector *stmts;  // 後に続くstatementのリスト (switchならcase/default)
   vector *locals;  // ローカル変数のリスト (スコープを作る時だけ)
   Variable *cast;  // キャストする型 (キャストの時のみ)
   int val;         // kindがND_NUMの場合のみ使う
@@ -53,3 +53,13 @@ Node *new_node_num(int val);
 Code *print_node(Node *node);
 
 char *get_node_kind_name(NodeKind kind);
+
+void free_call(Call *call);
+
+void free_node(Node *node);
+
+void free_function(Function *func);
+
+Call *copy_call(Call *call);
+
+Node *copy_node(Node *node);

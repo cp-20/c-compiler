@@ -177,6 +177,27 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // switch
+    if (strncmp(p, "switch", 6) == 0 && !is_alpha(p[6]) && !is_num(p[6])) {
+      cur = new_token(TK_SWITCH, cur, p);
+      p += 6;
+      continue;
+    }
+
+    // case
+    if (strncmp(p, "case", 4) == 0 && !is_alpha(p[4]) && !is_num(p[4])) {
+      cur = new_token(TK_CASE, cur, p);
+      p += 4;
+      continue;
+    }
+
+    // default
+    if (strncmp(p, "default", 7) == 0 && !is_alpha(p[7]) && !is_num(p[7])) {
+      cur = new_token(TK_DEFAULT, cur, p);
+      p += 7;
+      continue;
+    }
+
     // int型
     if (strncmp(p, "int", 3) == 0 && !is_alpha(p[3]) && !is_num(p[3])) {
       cur = new_token(TK_INT, cur, p);

@@ -27,6 +27,9 @@ typedef enum {
   ND_FOR,       // for
   ND_CONTINUE,  // continue
   ND_BREAK,     // break
+  ND_SWITCH,    // switch
+  ND_CASE,      // case
+  ND_DEFAULT,   // default
   ND_BLOCK,     // { ... }
   ND_GROUP,     // 複数のノードをまとめる
   ND_CALL,      // 関数呼び出し

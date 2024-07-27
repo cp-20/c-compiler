@@ -28,9 +28,20 @@ struct Variable {
   int* value;        // 定数の値
 };
 
+// ローカル変数の型
+typedef struct LVar LVar;
+struct LVar {
+  char* name;     // 変数の名前
+  int len;        // 名前の長さ
+  int offset;     // 何番目に宣言された変数か (0-indexed)
+  Variable* var;  // 変数の情報
+};
+
 Variable* new_variable(int reg, Type type, Variable* ptr_to, int array_size);
 
 Variable* with_reg(Variable* var, int reg);
+
+Variable* copy_var(Variable* var);
 
 void push_variable(vector* stack, Variable* var);
 
@@ -53,3 +64,9 @@ bool is_number(Variable* var);
 Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval);
 
 int align(int size);
+
+LVar* copy_lvar(LVar* lvar);
+
+void free_lvar(LVar* lvar);
+
+void free_variable(Variable* var);

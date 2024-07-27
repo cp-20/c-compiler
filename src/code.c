@@ -8,24 +8,37 @@
 #include "debug.h"
 #include "error.h"
 
-#define CODE_SIZE_UNIT 2048
+#define CODE_SIZE_UNIT 1024
+
+int sum_memory;
 
 Code* init_code() {
-  Code* code = malloc(sizeof(Code));
+  Code* code = calloc(1, sizeof(Code));
+  if (code == NULL) {
+    error("Failed to allocate memory\n");
+  }
+  // print_debug("calloc start");
   code->code = calloc(CODE_SIZE_UNIT, sizeof(char));
+  // print_debug("calloc end");
   code->size = 0;
   code->capacity = CODE_SIZE_UNIT;
+  sum_memory += CODE_SIZE_UNIT;
+  // print_debug("sum_memory: %d (+%d)", sum_memory, CODE_SIZE_UNIT);
   return code;
 }
 
 void push_code(Code* code, char* fmt, ...) {
   if (code->size >= code->capacity - CODE_SIZE_UNIT) {
     code->capacity += CODE_SIZE_UNIT;
+    // print_debug("push_code realloc start (capacity: %d)", code->capacity);
     char* new_code = realloc(code->code, code->capacity);
+    // print_debug("push_code realloc end");
     if (new_code == NULL) {
       error("Failed to allocate memory\n");
     }
     code->code = new_code;
+    sum_memory += CODE_SIZE_UNIT;
+    // print_debug("sum_memory: %d (+%d)", sum_memory, CODE_SIZE_UNIT);
   }
 
   va_list ap;
@@ -44,18 +57,30 @@ void push_code(Code* code, char* fmt, ...) {
 }
 
 void merge_code(Code* code, Code* other) {
-  if (code->size + other->size + 1 >= code->capacity) {
-    code->capacity = code->capacity * 2 + other->size + 1;
-    code->code = realloc(code->code, code->capacity);
+  if (code->size + other->size + 1 >= code->capacity - CODE_SIZE_UNIT) {
+    int before = code->capacity;
+    code->capacity = code->size + other->size + 1 + CODE_SIZE_UNIT;
+    // print_debug("merge_code realloc start (capacity: %d -> %d)", before,
+    //             code->capacity);
+    char* new_code = realloc(code->code, code->capacity);
+    // print_debug("merge_code realloc end");
+    if (new_code == NULL) {
+      error("Failed to allocate memory\n");
+    }
+    code->code = new_code;
+    sum_memory += code->capacity - before;
+    // print_debug("sum_memory: %d (+%d)", sum_memory, code->capacity - before);
   }
 
-  sprintf(code->code + code->size, "%s", other->code);
+  strcat(code->code, other->code);
   code->size += other->size;
 
   free_code(other);
 }
 
 void free_code(Code* code) {
+  sum_memory -= code->capacity;
+  // print_debug("sum_memory: %d (-%d)", sum_memory, code->capacity);
   free(code->code);
   free(code);
 }

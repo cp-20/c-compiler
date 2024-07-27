@@ -12,8 +12,10 @@ stmt           = expr ";"
                | "return" expr? ";"
                | "break" ";"
                | "continue" ";"
+               | "switch" "(" expr ")" "{" ("case" constant ":" stmt*)* ("default" ":" stmt*)? "}"
 expr           = local_decl
-local_decl     = type ident ("=" ternary)? ("," ident ("=" ternary)? )*
+local_decl     = ternary
+               | type ident ("=" ternary)? ("," ident ("=" ternary)? )*
                | type ident "[" num "]" ("=" "{" (ternary ("," ternary)*)? "}")?
                | type ident "[" "]" ("=" "{" (ternary ("," ternary)*)? "}")?
                | struct_decl ("=" "{" (ternary ("," ternary)*)? "}")?
@@ -45,3 +47,4 @@ struct_decl    = "struct" ident "{" (type ident ";")* "}"
 enum_decl      = "enum" "{" ( ident "," )* "}" ";"
 struct_type    = "struct" (ident | ident? "{" (type ident ";")* "}")
 type           = ("int" | struct_type) "*"*
+constant       = num | ident

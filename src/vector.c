@@ -15,7 +15,7 @@ void vec_push_last(vector *v, void *element) {
     if (v->capacity < 1024) {
       v->capacity *= 2;
     } else {
-      v->capacity *= 1.25;
+      v->capacity = v->capacity * 5 / 4;
     }
     v->data = (void **)realloc(v->data, sizeof(void *) * v->capacity);
   }
@@ -27,7 +27,7 @@ void vec_push_first(vector *v, void *element) {
     if (v->capacity < 1024) {
       v->capacity *= 2;
     } else {
-      v->capacity *= 1.25;
+      v->capacity = v->capacity * 5 / 4;
     }
     v->data = (void **)realloc(v->data, sizeof(void *) * v->capacity);
   }

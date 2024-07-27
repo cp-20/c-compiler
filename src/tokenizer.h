@@ -17,6 +17,8 @@ typedef enum {
   TK_ELSE,      // else
   TK_WHILE,     // while
   TK_FOR,       // for
+  TK_CONTINUE,  // continue
+  TK_BREAK,     // break
   TK_SIZEOF,    // sizeof
   TK_INT,       // int
   TK_CHAR,      // char

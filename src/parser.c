@@ -415,6 +415,18 @@ Node *stmt(Token **token) {
 
     node->extra2 = stmt(token);
 
+
+  if (consume_reserved(token, TK_CONTINUE)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_CONTINUE;
+    expect(token, ";");
+    return node;
+  }
+
+  if (consume_reserved(token, TK_BREAK)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_BREAK;
+    expect(token, ";");
     return node;
   }
 

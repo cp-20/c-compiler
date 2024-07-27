@@ -163,6 +163,20 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // continue文
+    if (strncmp(p, "continue", 8) == 0 && !is_alpha(p[8]) && !is_num(p[8])) {
+      cur = new_token(TK_CONTINUE, cur, p);
+      p += 8;
+      continue;
+    }
+
+    // break文
+    if (strncmp(p, "break", 5) == 0 && !is_alpha(p[5]) && !is_num(p[5])) {
+      cur = new_token(TK_BREAK, cur, p);
+      p += 5;
+      continue;
+    }
+
     // int型
     if (strncmp(p, "int", 3) == 0 && !is_alpha(p[3]) && !is_num(p[3])) {
       cur = new_token(TK_INT, cur, p);

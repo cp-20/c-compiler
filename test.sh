@@ -332,6 +332,12 @@ assert "int main() { int a = 3; a -= 5; print(a); }" "-2"
 assert "int main() { int a = 3; a *= 5; print(a); }" "15"
 assert "int main() { int a = 15; a /= 5; print(a); }" "3"
 
+describe "continue / break"
+assert "int main() { int a = 0; for (int i = 0; i < 10; i++) { if (i == 5) continue; a++; } print(a); }" "9"
+assert "int main() { int a = 0; for (int i = 0; i < 10; i++) { if (i == 5) break; a++; } print(a); }" "5"
+assert "int main() { int a = 0; int i = 10; while(i--) { if (i == 5) continue; a++; } print(a); }" "9"
+assert "int main() { int a = 0; int i = 10; while(i--) { if (i == 5) break; a++; } print(a); }" "4"
+
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "
 for i in $(seq 0 $((${#pids[@]} - 1))); do

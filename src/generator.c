@@ -14,6 +14,9 @@
 
 Variable** globals;
 
+vector* continue_labels;
+vector* break_labels;
+
 Variable* get_variable(Variable** locals, int offset) {
   if (offset >= 0) return locals[offset];
   return globals[-offset - 1];
@@ -224,7 +227,20 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     return code;
   } else if (node->kind == ND_WHILE) {
     // whileの場合は条件式を計算して条件によってループする
+
+    // start_label:
+    //   条件式の評価
+    //   br i1 %cond, label %next_label, label %end_label
+    // break_label:
+    //   br label %end_label
+    // next_label:
+    //   ループ内の処理
+    // end_label:
+
     int r_start_label = r_register(rctx);
+    int* r_continue_label_ptr = malloc(sizeof(int));
+    *r_continue_label_ptr = r_start_label;
+    vec_push_last(continue_labels, r_continue_label_ptr);
     push_code(code, "  br label %%%d\n", r_start_label);
     push_code(code, "%d:\n", r_start_label);
 
@@ -242,6 +258,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
               r_cond_val);
 
+    Code* break_block = init_code();
+    int r_break_label = r_register(rctx);
+    int* r_break_label_ptr = malloc(sizeof(int));
+    *r_break_label_ptr = r_break_label;
+    vec_push_last(break_labels, r_break_label_ptr);
+    push_code(break_block, "%d:\n", r_break_label);
+
     Code* block = init_code();
 
     int r_next_label = r_register(rctx);
@@ -252,11 +275,32 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     int r_end_label = r_register(rctx);
     push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
               r_next_label, r_end_label);
+    push_code(break_block, "  br label %%%d\n", r_end_label);
+    merge_code(code, break_block);
     merge_code(code, block);
     push_code(code, "%d:\n", r_end_label);
+    vec_pop(continue_labels);
+    vec_pop(break_labels);
+    free(r_continue_label_ptr);
+    free(r_break_label_ptr);
     return code;
   } else if (node->kind == ND_FOR) {
     // forの場合は初期化式、条件式、ループ内式の順に実行する
+
+    //   初期化式
+    // start_label:
+    //   条件式の評価
+    //   br i1 %cond, label %next_label, label %end_label
+    // break_label:
+    //   br label %end_label
+    // continue_label:
+    //   ループ内の処理
+    // next_label:
+    //   ループ内の処理
+    //   ループ内式
+    //   br label %start_label
+    // end_label:
+
     // 初期化式
     merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
 
@@ -278,19 +322,44 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
               r_cond_val);
 
+    Code* break_block = init_code();
+    int r_break_label = r_register(rctx);
+    int* r_break_label_ptr = malloc(sizeof(int));
+    *r_break_label_ptr = r_break_label;
+    vec_push_last(break_labels, r_break_label_ptr);
+    push_code(break_block, "%d:\n", r_break_label);
+
+    Code* continue_block = init_code();
+    int r_continue_label = r_register(rctx);
+    int* r_continue_label_ptr = malloc(sizeof(int));
+    *r_continue_label_ptr = r_continue_label;
+    vec_push_last(continue_labels, r_continue_label_ptr);
+    push_code(continue_block, "%d:\n", r_continue_label);
+
     Code* block = init_code();
 
     int r_next_label = r_register(rctx);
     push_code(block, "%d:\n", r_next_label);
     merge_code(block, generate_node(node->extra2, stack, locals_r, rctx));
+    int r_continue_dist_label = r_register(rctx);
+    push_code(continue_block, "  br label %%%d\n", r_continue_dist_label);
+    push_code(block, "  br label %%%d\n", r_continue_dist_label);
+    push_code(block, "%d:\n", r_continue_dist_label);
     merge_code(block, generate_node(node->extra, stack, locals_r, rctx));
     push_code(block, "  br label %%%d\n", r_start_label);
 
     int r_end_label = r_register(rctx);
     push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
               r_next_label, r_end_label);
+    push_code(break_block, "  br label %%%d\n", r_end_label);
+    merge_code(code, break_block);
+    merge_code(code, continue_block);
     merge_code(code, block);
     push_code(code, "%d:\n", r_end_label);
+    vec_pop(continue_labels);
+    vec_pop(break_labels);
+    free(r_continue_label_ptr);
+    free(r_break_label_ptr);
     return code;
   } else if (node->kind == ND_BLOCK || node->kind == ND_GROUP) {
     // ブロックの場合は各文を順に生成する
@@ -487,6 +556,22 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
               r_then_label, r_next_label);
     merge_code(code, block);
     push_variable(stack, with_reg(node->cast, r_result));
+    return code;
+  } else if (node->kind == ND_CONTINUE) {
+    if (continue_labels->size == 0) {
+      error("continue文がループの外で使われています");
+    }
+    int* r_continue_label_ptr = vec_last(continue_labels);
+    push_code(code, "  br label %%%d\n", *r_continue_label_ptr);
+    r_register(rctx);
+    return code;
+  } else if (node->kind == ND_BREAK) {
+    if (break_labels->size == 0) {
+      error("break文がループの外で使われています");
+    }
+    int* r_break_label_ptr = vec_last(break_labels);
+    push_code(code, "  br label %%%d\n", *r_break_label_ptr);
+    r_register(rctx);
     return code;
   }
 
@@ -778,12 +863,16 @@ Code* generate_func(Function* func) {
 
   // 関数本体の生成
   for (int i = 0; i < func->body->size; i++) {
+    continue_labels = new_vector();
+    break_labels = new_vector();
     Node* node = vec_at(func->body, i);
     if (node == NULL) continue;
     push_code(code, "  ; ");
     merge_code(code, print_node(node));
     push_code(code, "\n");
     merge_code(code, generate_node(node, stack, locals_r, rctx));
+    vec_free(continue_labels);
+    vec_free(break_labels);
   }
 
   if (memcmp(func->name, "main", 4) == 0) {

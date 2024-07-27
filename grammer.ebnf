@@ -10,6 +10,8 @@ stmt           = expr ";"
                | "while" "(" expr ")" stmt
                | "for" "(" expr? ";" expr? ";" expr? ")" stmt
                | "return" expr? ";"
+               | "break" ";"
+               | "continue" ";"
 expr           = local_decl
 local_decl     = type ident ("=" ternary)? ("," ident ("=" ternary)? )*
                | type ident "[" num "]" ("=" "{" (ternary ("," ternary)*)? "}")?

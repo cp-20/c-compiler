@@ -153,6 +153,16 @@ Code *print_node(Node *node) {
     return code;
   }
 
+  if (node->kind == ND_CONTINUE) {
+    push_code(code, "continue;");
+    return code;
+  }
+
+  if (node->kind == ND_BREAK) {
+    push_code(code, "break;");
+    return code;
+  }
+
   push_code(code, "(");
   merge_code(code, print_node(node->lhs));
   if (node->kind == ND_ADD) {

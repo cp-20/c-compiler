@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "code.h"
+#include "error.h"
 #include "variable.h"
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
@@ -197,3 +198,72 @@ Code *print_node(Node *node) {
 
   return code;
 }
+
+char *get_node_kind_name(NodeKind kind) {
+  switch (kind) {
+    case ND_ADD:
+      return "ND_ADD";
+    case ND_SUB:
+      return "ND_SUB";
+    case ND_MUL:
+      return "ND_MUL";
+    case ND_DIV:
+      return "ND_DIV";
+    case ND_EQ:
+      return "ND_EQ";
+    case ND_NE:
+      return "ND_NE";
+    case ND_LT:
+      return "ND_LT";
+    case ND_LE:
+      return "ND_LE";
+    case ND_GT:
+      return "ND_GT";
+    case ND_GE:
+      return "ND_GE";
+    case ND_AND:
+      return "ND_AND";
+    case ND_OR:
+      return "ND_OR";
+    case ND_INCR:
+      return "ND_INCR";
+    case ND_DECR:
+      return "ND_DECR";
+    case ND_REF:
+      return "ND_REF";
+    case ND_DEREF:
+      return "ND_DEREF";
+    case ND_ACCESS:
+      return "ND_ACCESS";
+    case ND_ASSIGN:
+      return "ND_ASSIGN";
+    case ND_LVAR:
+      return "ND_LVAR";
+    case ND_RETURN:
+      return "ND_RETURN";
+    case ND_IF:
+      return "ND_IF";
+    case ND_WHILE:
+      return "ND_WHILE";
+    case ND_FOR:
+      return "ND_FOR";
+    case ND_CONTINUE:
+      return "ND_CONTINUE";
+    case ND_BREAK:
+      return "ND_BREAK";
+    case ND_BLOCK:
+      return "ND_BLOCK";
+    case ND_GROUP:
+      return "ND_GROUP";
+    case ND_CALL:
+      return "ND_CALL";
+    case ND_NUM:
+      return "ND_NUM";
+    case ND_STRING:
+      return "ND_STRING";
+    case ND_TERNARY:
+      return "ND_TERNARY";
+    default:
+      return "UNKNOWN";
+  }
+};

@@ -40,7 +40,13 @@ LVar *find_lvar_from_vector(Token *tok, vector *locals) {
 }
 
 LVar *find_lvar(Token *tok) {
-  LVar *lvar = find_lvar_from_vector(tok, global_locals);
+  LVar *lvar;
+  for (int i = 0; i < global_locals->size; i++) {
+    vector *locals = vec_at(global_locals, i);
+    lvar = find_lvar_from_vector(tok, locals);
+    if (lvar != NULL) return lvar;
+  }
+
   if (lvar == NULL) {
     lvar = find_lvar_from_vector(tok, global_globals);
   }
@@ -85,6 +91,15 @@ Variable *find_typedef(Token *tok) {
     }
   }
   return NULL;
+}
+
+int get_offset() {
+  int offset = 0;
+  for (int i = 0; i < global_locals->size; i++) {
+    vector *locals = vec_at(global_locals, i);
+    offset += locals->size;
+  }
+  return offset;
 }
 
 void setup_program() {
@@ -155,7 +170,7 @@ Program *program(Token **token) {
     for (int i = 0; i < code->size; i++) {
       Function *f = vec_at(code, i);
       if (f->len == func->len && !memcmp(f->name, func->name, f->len)) {
-        if (f->is_proto && !func->is_proto) {
+        if (f->is_proto) {
           vec_remove(code, i);
           break;
         }
@@ -179,7 +194,7 @@ Function *global_decl(Token **token) {
   print_debug_token("global_decl", token);
 
   if (consume_reserved(token, TK_EXTERN)) {
-    Variable *return_type = type(token, false);
+    Variable *return_type = type(token, false, false);
     if (return_type == NULL) {
       error_at((*token)->str, "型ではありません");
     }
@@ -229,7 +244,7 @@ Function *global_decl(Token **token) {
     return NULL;
   }
 
-  Variable *return_type = type(token, false);
+  Variable *return_type = type(token, false, true);
   if (return_type != NULL) {
     if (return_type->type == TYPE_STRUCT) {
       vec_push_last(global_structs, return_type);
@@ -278,7 +293,7 @@ Function *global_decl(Token **token) {
             expect(token, ")");
             break;
           }
-          Variable *argument_type = type(token, false);
+          Variable *argument_type = type(token, false, false);
           if (argument_type == NULL) {
             error_at((*token)->str, "型ではありません");
           }
@@ -303,7 +318,8 @@ Function *global_decl(Token **token) {
       }
       func->argc = argc;
       func->locals = locals;
-      global_locals = locals;
+      global_locals = new_vector();
+      vec_push_first(global_locals, locals);
       if (consume(token, "{")) {
         func->is_proto = false;
         vector *stmts = new_vector();
@@ -315,6 +331,7 @@ Function *global_decl(Token **token) {
         func->is_proto = true;
         expect(token, ";");
       }
+      vec_free(global_locals);
       return func;
     }
 
@@ -352,12 +369,16 @@ Node *stmt(Token **token) {
   Node *node;
 
   if (consume(token, "{")) {
+    vector *locals = new_vector();
+    vec_push_first(global_locals, locals);
     vector *stmts = new_vector();
     while (!consume(token, "}")) {
       vec_push_last(stmts, stmt(token));
     }
+    vec_shift(global_locals);
     node = new_node(ND_BLOCK, NULL, NULL);
     node->stmts = stmts;
+    node->locals = locals;
     return node;
   }
 
@@ -399,6 +420,8 @@ Node *stmt(Token **token) {
   if (consume_reserved(token, TK_FOR)) {
     node = calloc(1, sizeof(Node));
     node->kind = ND_FOR;
+    node->locals = new_vector();
+    vec_push_first(global_locals, node->locals);
     expect(token, "(");
     if (consume(token, ";")) {
       node->lhs = NULL;
@@ -421,6 +444,10 @@ Node *stmt(Token **token) {
 
     node->extra2 = stmt(token);
 
+    vec_shift(global_locals);
+
+    return node;
+  }
 
   if (consume_reserved(token, TK_CONTINUE)) {
     node = calloc(1, sizeof(Node));
@@ -446,11 +473,12 @@ Node *expr(Token **token) { return local_decl(token); }
 Node *local_decl(Token **token) {
   print_debug_token("local_decl", token);
 
-  Variable *var_type = type(token, true);
+  Variable *var_type = type(token, true, false);
   if (var_type == NULL) return ternary(token);
 
   Node *node = new_node(ND_GROUP, NULL, NULL);
   vector *stmts = new_vector();
+  vector *locals = vec_first(global_locals);
   do {
     int ref_nest = 0;
     while (consume(token, "*")) ref_nest++;
@@ -466,7 +494,7 @@ Node *local_decl(Token **token) {
     lvar = calloc(1, sizeof(LVar));
     lvar->name = tok->str;
     lvar->len = tok->len;
-    lvar->offset = global_locals->size;
+    lvar->offset = get_offset();
 
     Variable *var = var_type;
     for (int nest = ref_nest; nest > 0; nest--) {
@@ -479,7 +507,7 @@ Node *local_decl(Token **token) {
       int array_size = consume_number(token);
       lvar->var = new_variable(-1, TYPE_ARRAY, lvar->var, array_size);
       expect(token, "]");
-      vec_push_last(global_locals, lvar);
+      vec_push_last(locals, lvar);
 
       if (consume(token, "=")) {
         Node *lvar_node = new_node(ND_LVAR, NULL, NULL);
@@ -510,7 +538,10 @@ Node *local_decl(Token **token) {
         }
       }
     } else {
-      vec_push_last(global_locals, lvar);
+      print_debug("push local variable: %.*s (offset = %d)", lvar->len,
+                  lvar->name, lvar->offset);
+      print_debug("type = %s", get_variable_type_str(lvar->var));
+      vec_push_last(locals, lvar);
 
       if (consume(token, "=")) {
         Node *lvar_node = new_node(ND_LVAR, NULL, NULL);
@@ -572,7 +603,6 @@ Node *logical(Token **token) {
 
 Node *assign(Token **token) {
   Node *node = equality(token);
-  print_debug("node->offset = %d", node->offset);
   if (consume(token, "=")) node = new_node(ND_ASSIGN, node, assign(token));
   if (consume(token, "+="))
     node = new_node(ND_ASSIGN, node, new_node(ND_ADD, node, assign(token)));
@@ -646,7 +676,7 @@ Node *unary(Token **token) {
 
   if (consume_reserved(token, TK_SIZEOF)) {
     expect(token, "(");
-    Variable *node_type = type(token, false);
+    Variable *node_type = type(token, false, false);
     if (node_type == NULL) {
       Node *node = logical(token);
       node_type = get_node_type(node, global_locals);
@@ -706,7 +736,7 @@ Node *primary(Token **token) {
   print_debug_token("primary", token);
 
   if (consume(token, "(")) {
-    Variable *cast_type = type(token, false);
+    Variable *cast_type = type(token, false, false);
     if (cast_type != NULL) {
       expect(token, ")");
       Node *node = primary(token);
@@ -735,7 +765,7 @@ Node *primary(Token **token) {
       node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);
       node->call->args = new_vector();
       while (!consume(token, ")")) {
-        vec_push_last(node->call->args, expr(token));
+        vec_push_last(node->call->args, ternary(token));
         if (consume(token, ")")) break;
         expect(token, ",");
       }
@@ -812,7 +842,12 @@ Node *parse_primary_access(Token **token, Node *node) {
         return NULL;
       }
       Variable *struct_var = get_node_type(node, global_locals);
+      print_debug("struct_var = %d", struct_var->type);
       int field_index = find_struct_field(tok, struct_var->ptr_to);
+      print_debug("field_index = %d", field_index);
+      LVar *field = vec_at(struct_var->ptr_to->fields, field_index);
+      print_debug("field = %s", get_variable_type_str(field->var));
+      print_debug("field");
       if (field_index == -1) {
         error_at(tok->str, "メンバーが存在しません");
         return NULL;
@@ -826,7 +861,7 @@ Node *parse_primary_access(Token **token, Node *node) {
   return node;
 }
 
-Variable *parse_struct(Token **token, bool is_declare) {
+Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
   print_debug_token("parse_struct", token);
 
   if (!consume_reserved(token, TK_STRUCT)) {
@@ -847,20 +882,24 @@ Variable *parse_struct(Token **token, bool is_declare) {
 
   if (consume(token, "{")) {
     if (var != NULL) {
-      error_at(tok->str, "変数が二重定義されています");
-      return NULL;
+      if (var->reg != -1) {
+        error_at(tok->str, "変数が二重定義されています");
+        return NULL;
+      }
+    } else {
+      var = calloc(1, sizeof(Variable));
     }
-    var = calloc(1, sizeof(Variable));
     var->type = TYPE_STRUCT;
     var->fields = new_vector();
     var->name = tok->str;
     var->len = tok->len;
+    var->reg = 0;
     if (!is_declare) {
       vec_push_last(global_local_structs, var);
     }
 
     while (!consume(token, "}")) {
-      Variable *field_type = type(token, false);
+      Variable *field_type = type(token, false, false);
       if (field_type == NULL) {
         error_at((*token)->str, "型ではありません");
         return NULL;
@@ -879,8 +918,16 @@ Variable *parse_struct(Token **token, bool is_declare) {
     }
   } else {
     if (var == NULL) {
-      error_at(tok->str, "未定義の構造体です: %.*s", tok->len, tok->str);
-      return NULL;
+      if (!is_typedef) {
+        error_at(tok->str, "未定義の構造体です: %.*s", tok->len, tok->str);
+        return NULL;
+      }
+
+      var = new_variable(-1, TYPE_STRUCT, NULL, 0);
+      var->name = tok->str;
+      var->len = tok->len;
+      var->reg = -1;
+      vec_push_last(global_structs, var);
     }
   }
   return var;
@@ -915,7 +962,7 @@ bool enum_decl(Token **token) {
   return false;
 }
 
-Variable *type(Token **token, bool exclude_ptr) {
+Variable *type(Token **token, bool exclude_ptr, bool is_typedef) {
   print_debug_token("type", token);
 
   Variable *var = NULL;
@@ -940,7 +987,7 @@ Variable *type(Token **token, bool exclude_ptr) {
   }
 
   if (var == NULL) {
-    var = parse_struct(token, false);
+    var = parse_struct(token, false, is_typedef);
   }
 
   if (!exclude_ptr) {

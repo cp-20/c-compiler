@@ -4,6 +4,14 @@
 #include "tokenizer.h"
 #include "variable.h"
 
+extern vector *global_locals;
+extern vector *global_structs;
+extern vector *global_typedefs;
+extern vector *global_strings;
+extern vector *global_local_structs;
+extern vector *global_globals;
+extern int anon_structs_index;
+
 // プログラム
 typedef struct Program {
   vector *structs;    // 構造体のリスト
@@ -31,6 +39,8 @@ int find_struct_field(Token *tok, Variable *struct_var);
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
 LVar *find_lvar_from_vector(Token *tok, vector *locals);
 
+int get_offset(void);
+
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 
 Node *new_node_num(int val);
@@ -53,8 +63,8 @@ Node *mul(Token **token);
 Node *unary(Token **token);
 Node *primary(Token **token);
 Node *parse_primary_access(Token **token, Node *node);
-Variable *parse_struct(Token **token, bool name_required);
+Variable *parse_struct(Token **token, bool name_required, bool is_typedef);
 bool enum_decl(Token **token);
-Variable *type(Token **token, bool exclude_ptr);
+Variable *type(Token **token, bool exclude_ptr, bool is_typedef);
 
 Program *parse(Token *token);

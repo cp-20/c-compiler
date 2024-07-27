@@ -74,12 +74,29 @@ void push_variable_with_cast_if_needed(vector* stack, Variable* var,
 }
 
 Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
-  print_debug(COL_BLUE "[generator]" COL_RESET " generate_node %d", node->kind);
+  print_debug(COL_BLUE "[generator]" COL_CYAN " [generate_node]" COL_RESET
+                       " %s",
+              get_node_kind_name(node->kind));
 
   Code* code = init_code();
   push_code(code, "  ; generate %d -> ", node->kind);
   merge_code(code, print_node(node));
   push_code(code, "\n");
+
+  // ブロックスコープを作る
+  if (node->kind == ND_BLOCK || node->kind == ND_FOR) {
+    print_debug(COL_BLUE "[generator] " COL_GREEN "[%s] " COL_RESET
+                         "node->locals->size = %d",
+                get_node_kind_name(node->kind), node->locals->size);
+    for (int i = 0; i < node->locals->size; i++) {
+      LVar* lvar = vec_at(node->locals, i);
+      char* type = get_variable_type_str(lvar->var);
+      int size = get_variable_size(lvar->var);
+      int r_var = r_register(rctx);
+      push_code(code, "  %%%d = alloca %s, align %d\n", r_var, type, size);
+      locals_r[lvar->offset] = with_reg(lvar->var, r_var);
+    }
+  }
 
   if (node->kind == ND_NUM) {
     // 数字の場合はそのままスタックに積む
@@ -362,6 +379,9 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     free(r_break_label_ptr);
     return code;
   } else if (node->kind == ND_BLOCK || node->kind == ND_GROUP) {
+    print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_BLOCK] " COL_RESET
+                         "node->stmts->size = %d",
+                node->stmts->size);
     // ブロックの場合は各文を順に生成する
     for (int i = 0; i < node->stmts->size; i++) {
       Node* stmt = vec_at(node->stmts, i);
@@ -382,7 +402,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
                   i, arg->kind);
       merge_code(code, generate_node(arg, stack, locals_r, rctx));
     }
-    Variable args[node->call->args->size];
+    Variable* args = calloc(node->call->args->size, sizeof(Variable));
     for (int i = 0; i < node->call->args->size; i++) {
       int j = node->call->args->size - i - 1;
       Variable* arg = pop_variable(stack);
@@ -673,14 +693,9 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   // 計算する
   int r_result_val = r_register(rctx);
   if (node->kind == ND_ADD || node->kind == ND_SUB || node->kind == ND_MUL) {
-    char op[4];
-    if (node->kind == ND_ADD) {
-      sprintf(op, "add");
-    } else if (node->kind == ND_SUB) {
-      sprintf(op, "sub");
-    } else if (node->kind == ND_MUL) {
-      sprintf(op, "mul");
-    }
+    char* op = node->kind == ND_ADD   ? "add"
+               : node->kind == ND_SUB ? "sub"
+                                      : "mul";
     push_code(code, "  %%%d = %s nsw %s %%%d, %%%d\n", r_result_val, op,
               val_type, r_left_val, r_right_val);
   } else if (node->kind == ND_DIV) {
@@ -689,20 +704,12 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
   } else if (node->kind == ND_EQ || node->kind == ND_NE ||
              node->kind == ND_LT || node->kind == ND_LE ||
              node->kind == ND_GT || node->kind == ND_GE) {
-    char op[4];
-    if (node->kind == ND_EQ) {
-      sprintf(op, "eq");
-    } else if (node->kind == ND_NE) {
-      sprintf(op, "ne");
-    } else if (node->kind == ND_LT) {
-      sprintf(op, "slt");
-    } else if (node->kind == ND_LE) {
-      sprintf(op, "sle");
-    } else if (node->kind == ND_GT) {
-      sprintf(op, "sgt");
-    } else if (node->kind == ND_GE) {
-      sprintf(op, "sge");
-    }
+    char* op = node->kind == ND_EQ   ? "eq"
+               : node->kind == ND_NE ? "ne"
+               : node->kind == ND_LT ? "slt"
+               : node->kind == ND_LE ? "sle"
+               : node->kind == ND_GT ? "sgt"
+                                     : "sge";
     int r_middle = r_register(rctx) - 1;
     r_result_val++;
     if (is_pointer_like(lval) || is_pointer_like(rval)) {
@@ -715,12 +722,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val, r_middle,
               val_type);
   } else if (node->kind == ND_AND || node->kind == ND_OR) {
-    char op[4];
-    if (node->kind == ND_AND) {
-      sprintf(op, "and");
-    } else if (node->kind == ND_OR) {
-      sprintf(op, "or");
-    }
+    char* op = node->kind == ND_AND ? "and" : "or";
     int r_middle_l = r_register(rctx) - 1;
     int r_middle_r = r_register(rctx) - 1;
     int r_middle = r_register(rctx) - 1;
@@ -807,7 +809,7 @@ Code* generate_func(Function* func) {
     push_code(code, "define ");
   }
   push_code(code, "dso_local %s @%.*s(", ret_type, func->len, func->name);
-  int args[func->argc];
+  int* args = calloc(func->argc, sizeof(int));
   for (int i = 0; i < func->argc; i++) {
     if (i != 0) push_code(code, ", ");
     LVar* arg = vec_at(func->locals, i);
@@ -834,7 +836,7 @@ Code* generate_func(Function* func) {
   // ローカル変数の初期化
   print_debug(COL_BLUE "[generator]" COL_RESET " func->locals->size = %d",
               func->locals->size);
-  Variable** locals_r = calloc(func->locals->size, sizeof(Variable*));
+  Variable** locals_r = calloc(1024, sizeof(Variable*));
   for (int i = 0; i < func->argc; i++) {
     LVar* arg = vec_at(func->locals, i);
     print_debug(COL_BLUE "[generator]" COL_RESET " func->locals[%d] = %.*s", i,
@@ -867,6 +869,8 @@ Code* generate_func(Function* func) {
     break_labels = new_vector();
     Node* node = vec_at(func->body, i);
     if (node == NULL) continue;
+    print_debug(COL_BLUE "[generator]" COL_RESET " func->body[%d] = %d", i,
+                node->kind);
     push_code(code, "  ; ");
     merge_code(code, print_node(node));
     push_code(code, "\n");

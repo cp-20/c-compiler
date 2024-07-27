@@ -33,12 +33,13 @@ struct Call {
 // 抽象構文木のノードの型
 typedef struct Node Node;
 struct Node {
-  Node *lhs;       // 左辺
-  Node *rhs;       // 右辺
-  Node *extra;     // 追加のノード
-  Node *extra2;    // 追加のノード
-  Call *call;      // kindがND_CALLのときのみ使う
-  vector *stmts;   // 後に続くstatementのリスト
+  Node *lhs;      // 左辺
+  Node *rhs;      // 右辺
+  Node *extra;    // 追加のノード
+  Node *extra2;   // 追加のノード
+  Call *call;     // kindがND_CALLのときのみ使う
+  vector *stmts;  // 後に続くstatementのリスト
+  vector *locals;  // ローカル変数のリスト (スコープを作る時だけ)
   Variable *cast;  // キャストする型 (キャストの時のみ)
   int val;         // kindがND_NUMの場合のみ使う
   int offset;      // kindがND_LVARの場合のみ使う
@@ -50,3 +51,5 @@ Node *new_node(NodeKind kind, Node *lhs, Node *rhs);
 Node *new_node_num(int val);
 
 Code *print_node(Node *node);
+
+char *get_node_kind_name(NodeKind kind);

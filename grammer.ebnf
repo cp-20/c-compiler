@@ -37,7 +37,7 @@ primary        = num
                | string+
                | "(" expr ")" primary_access*
                | "(" type ")" primary
-               | ident ("(" ident ("," ident)* ")")? primary_access*
+               | ident ("(" (ternary ("," ternary)*)? ")")? primary_access*
 primary_access = "[" logical "]"
                | "." ident
                | "->" ident 

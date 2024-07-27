@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 
+#include "debug.h"
 #include "error.h"
 #include "node.h"
 #include "parser.h"
@@ -38,12 +39,40 @@ Variable* get_node_type(Node* node, vector* locals) {
       return get_node_type(node->lhs, locals)->ptr_to;
     case ND_ASSIGN:
       return get_node_type(node->lhs, locals);
-    case ND_LVAR:
-      return ((LVar*)vec_at(locals, node->offset))->var;
+    case ND_LVAR: {
+      int offset = node->offset;
+      if (offset < 0) {
+        // グローバル変数
+        LVar* lvar = vec_at(global_globals, -offset - 1);
+        return lvar->var;
+      }
+
+      for (int i = locals->size - 1; i >= 0; i--) {
+        vector* local = vec_at(locals, i);
+        for (int j = 0; j < local->size; j++) {
+          if (offset == 0) {
+            LVar* lvar = vec_at(local, j);
+            return lvar->var;
+          }
+          offset--;
+        }
+      }
+      error("ローカル変数が見つかりません (offset = %d)", node->offset);
+    }
     case ND_NUM:
       return new_variable(0, TYPE_I32, NULL, 0);
+    case ND_ACCESS: {
+      Variable* st = get_node_type(node->lhs, locals);
+      if (st->type != TYPE_STRUCT) {
+        error("%.*s は構造体ではありません", st->len, st->name);
+      }
+      LVar* lvar = vec_at(st->fields, node->rhs->val);
+      return lvar->var;
+    }
+    case ND_STRING:
+      return new_variable(0, TYPE_PTR, new_variable(0, TYPE_I8, NULL, 0), 0);
     default:
-      error("ノード %d はsizeof演算ができません", node->kind);
+      error("ノード %d の型はわかりません", node->kind);
       return NULL;
   }
 }

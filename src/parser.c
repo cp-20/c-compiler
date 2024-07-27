@@ -9,9 +9,15 @@
 void print_debug_token(char *type, Token **token) {
   if (!f_debug) return;
   int len = (*token)->len > 0 ? (*token)->len : 1;
-  print_debug(COL_BLUE "[parse] " COL_GREEN "[%s] " COL_YELLOW "%.*s " COL_RESET
-                       "(%d)",
-              type, len, (*token)->str, (*token)->kind);
+  char *line = (*token)->str;
+  char *line_start = line;
+  while (user_input < line_start && line_start[-1] != '\n') line_start--;
+  char *line_end = line;
+  while (*line_end != '\n') line_end++;
+  print_debug(COL_BLUE "[parse] " COL_GREEN "[%s] " COL_RESET "%.*s" COL_YELLOW
+                       "%.*s" COL_RESET "%.*s" COL_CYAN " (%d)" COL_RESET,
+              type, line - line_start, line_start, len, line,
+              line_end - line - len, line + len, (*token)->kind);
 }
 
 vector *global_locals;

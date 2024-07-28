@@ -163,7 +163,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         free(val_type);
         val_type = calloc(4, sizeof(char));
         sprintf(val_type, "i32");
-            }
+      }
       push_code(code, "  ret %s %%%d\n", val_type, r_result_val);
       // なぜかよくわからないけどレジスタを1個空けると上手く行く
       r_register(rctx);
@@ -426,36 +426,49 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       // start_label:
       //   条件式の評価
       //   br i1 %cond, label %next_label, label %end_label
+      // continue_label:
+      //   br label %continue_dist_label
       // break_label:
       //   br label %end_label
-      // continue_label:
-      //   ループ内の処理
       // next_label:
       //   ループ内の処理
-      //   ループ内式
+      //   br label %continue_dist_label
+      // continue_dist_label:
+      //   ループ後の処理
       //   br label %start_label
       // end_label:
 
       // 初期化式
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+      if (node->lhs != NULL) {
+        merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+      }
 
       int r_start_label = r_register(rctx);
       push_code(code, "  br label %%%d\n", r_start_label);
       push_code(code, "%d:\n", r_start_label);
 
       // 条件式を計算する
-      merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
-      Variable* cond = pop_variable(stack);
-      char* cond_type = get_variable_type_str(cond);
-      char* cond_ptype = get_ptr_variable_type_str(cond);
-      int cond_size = get_variable_size(cond);
-      int r_cond_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
-                cond_type, cond_ptype, cond->reg, cond_size);
+      int r_cond_bool;
+      if (node->rhs != NULL) {
+        merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
+        Variable* cond = pop_variable(stack);
+        char* cond_type = get_variable_type_str(cond);
+        char* cond_ptype = get_ptr_variable_type_str(cond);
+        int cond_size = get_variable_size(cond);
+        int r_cond_val = r_register(rctx);
+        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
+                  cond_type, cond_ptype, cond->reg, cond_size);
 
-      int r_cond_bool = r_register(rctx);
-      push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
-                r_cond_val);
+        r_cond_bool = r_register(rctx);
+        push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
+                  r_cond_val);
+        free_variable(cond);
+        free(cond_type);
+        free(cond_ptype);
+      } else {
+        r_cond_bool = r_register(rctx);
+        push_code(code, "  %%%d = icmp ne i32 1, 0\n", r_cond_bool);
+      }
 
       Code* break_block = init_code();
       int r_break_label = r_register(rctx);
@@ -480,7 +493,9 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(continue_block, "  br label %%%d\n", r_continue_dist_label);
       push_code(block, "  br label %%%d\n", r_continue_dist_label);
       push_code(block, "%d:\n", r_continue_dist_label);
-      merge_code(block, generate_node(node->extra, stack, locals_r, rctx));
+      if (node->extra != NULL) {
+        merge_code(block, generate_node(node->extra, stack, locals_r, rctx));
+      }
       push_code(block, "  br label %%%d\n", r_start_label);
 
       int r_end_label = r_register(rctx);
@@ -495,10 +510,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       vec_pop(break_labels);
       free(r_continue_label_ptr);
       free(r_break_label_ptr);
-
-      free_variable(cond);
-      free(cond_type);
-      free(cond_ptype);
       break;
     }
     case ND_BLOCK:
@@ -602,8 +613,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(code, "  %%%d = alloca %s, align %d\n", r_result, var_type,
                 var_size);
       int r_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_val, var_type,
-                var_ptype, var->reg, var_size);
+      if (var->reg >= 0) {
+        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_val,
+                  var_type, var_ptype, var->reg, var_size);
+      } else {
+        push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_val,
+                  var_type, var_ptype, var->len, var->name, var_size);
+      }
       push_code(code, "  store %s %%%d, %s %%%d, align %d\n", var_type, r_val,
                 var_ptype, r_result, var_size);
       push_variable_with_cast_if_needed(stack, with_reg(var, r_result),
@@ -643,8 +659,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       char* rhs_type = get_variable_type_str(rhs);
       char* rhs_ptype = get_ptr_variable_type_str(rhs);
       int r_ptr_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align 8\n", r_ptr_val,
-                rhs_type, rhs_ptype, rhs->reg);
+      if (rhs->reg >= 0) {
+        push_code(code, "  %%%d = load %s, %s %%%d, align 8\n", r_ptr_val,
+                  rhs_type, rhs_ptype, rhs->reg);
+      } else {
+        push_code(code, "  %%%d = load %s, %s @%.*s, align 8\n", r_ptr_val,
+                  rhs_type, rhs_ptype, rhs->len, rhs->name);
+      }
       push_variable_with_cast_if_needed(stack, with_reg(rhs->ptr_to, r_ptr_val),
                                         node->cast);
       free_variable(rhs);

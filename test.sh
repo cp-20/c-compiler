@@ -232,6 +232,7 @@ describe "for文"
 assert "int main() { int a = 0; for (int i = 0; i < 3; i = i + 1) a = a + 1; print(a); }" "3"
 assert "int main() { int a = 2; for (int i = 0; i < 3; i = i + 1) a = a * 2; print(a); }" "16"
 assert "int main() { int a = 0, b = 1; for (int i = 0; i < 10; i = i + 1) a = ((b = (a + b)) - a); print(a); }" "55"
+assert "int main() { int i = 0; for (;;) { if (i == 10) break; i++; } print(i); }" "10"
 
 describe "ブロック"
 assert "int main() { { print(3); } }" "3"

@@ -8,12 +8,12 @@
 #include "vector.h"
 
 Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
-                   rctx rctx);
+                   int* rctx);
 
 void push_variable_with_cast_if_needed(vector* stack, Variable* var,
                                        Variable* cast);
 
-Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx);
+Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx);
 
 Code* generate_struct(Variable* var);
 Code* generate_global(LVar* var);

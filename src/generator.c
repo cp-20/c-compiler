@@ -24,7 +24,7 @@ Variable* get_variable(Variable** locals, int offset) {
 
 // 左辺値のポインタ (レジスタ) を返す
 Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
-                   rctx rctx) {
+                   int* rctx) {
   if (node->kind == ND_LVAR) {
     return get_variable(locals_r, node->offset);
   }
@@ -79,7 +79,7 @@ void push_variable_with_cast_if_needed(vector* stack, Variable* var,
   }
 }
 
-Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
+Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
   print_debug(COL_BLUE "[generator]" COL_CYAN " [generate_node]" COL_RESET
                        " %s",
               get_node_kind_name(node->kind));
@@ -964,7 +964,7 @@ Code* generate_func(Function* func) {
 
   // 初期化処理
   vector* stack = new_vector();
-  rctx rctx = r_init();
+  int* rctx = r_init();
 
   // 関数のローカル構造体の宣言
   print_debug(COL_BLUE "[generator]" COL_RESET " func->structs->size = %d",

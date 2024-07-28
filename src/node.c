@@ -301,7 +301,7 @@ char *get_node_kind_name(NodeKind kind) {
     default:
       return "UNKNOWN";
   }
-};
+}
 
 void free_call(Call *call) {
   if (call == NULL) return;

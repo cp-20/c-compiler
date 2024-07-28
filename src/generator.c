@@ -16,6 +16,7 @@ Variable** globals;
 
 vector* continue_labels;
 vector* break_labels;
+Variable* return_type;
 
 Variable* get_variable(Variable** locals, int offset) {
   Variable* var = offset >= 0 ? locals[offset] : globals[-offset - 1];
@@ -142,16 +143,31 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         break;
       }
       merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-      Variable* val = get_last_variable(stack);
+      Variable* val = pop_variable(stack);
       char* val_type = get_variable_type_str(val);
       char* val_ptype = get_ptr_variable_type_str(val);
       int val_size = get_variable_size(val);
       int r_result_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_result_val,
-                val_type, val_ptype, val->reg, val_size);
+      if (val->reg >= 0) {
+        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_result_val,
+                  val_type, val_ptype, val->reg, val_size);
+      } else {
+        push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_result_val,
+                  val_type, val_ptype, val->len, val->name, val_size);
+      }
+      if (return_type->type == TYPE_I32 && val->type == TYPE_I8) {
+        int r_right_i32_val = r_register(rctx);
+        push_code(code, "  %%%d = zext i8 %%%d to i32\n", r_right_i32_val,
+                  r_result_val);
+        r_result_val = r_right_i32_val;
+        free(val_type);
+        val_type = calloc(4, sizeof(char));
+        sprintf(val_type, "i32");
+            }
       push_code(code, "  ret %s %%%d\n", val_type, r_result_val);
       // なぜかよくわからないけどレジスタを1個空けると上手く行く
       r_register(rctx);
+      free_variable(val);
       free(val_type);
       free(val_ptype);
       break;
@@ -1077,6 +1093,7 @@ Code* generate_func(Function* func) {
   // 初期化処理
   vector* stack = new_vector();
   int* rctx = r_init();
+  return_type = func->ret;
 
   // 関数のローカル構造体の宣言
   print_debug(COL_BLUE "[generator]" COL_RESET " func->structs->size = %d",

@@ -37,6 +37,8 @@ declare i64 @strlen(ptr noundef) #0
 declare ptr @strncat(ptr noundef, ptr noundef, i64 noundef) #0
 declare i32 @strncmp(ptr noundef, ptr noundef, i64 noundef) #0
 declare ptr @strerror(i32 noundef) #0
+declare ptr @strstr(ptr noundef, ptr noundef) #0
+declare i64 @strtol(ptr noundef, ptr noundef, i32 noundef) #0
 
 ; errno.h
 declare ptr @__errno_location() #0

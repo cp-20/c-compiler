@@ -187,8 +187,28 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         node->rhs->call->ret = copy_var_if_needed(lvar);
       }
       merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
-
       Variable* rhs = pop_variable(stack);
+      if (lvar->type == TYPE_I32 && rhs->type == TYPE_I8) {
+        int r_right_val = r_register(rctx);
+        if (rhs->reg >= 0) {
+          push_code(code, "  %%%d = load i8, i8* %%%d, align 1\n", r_right_val,
+                    rhs->reg);
+        } else {
+          push_code(code, "  %%%d = load i8, i8* @%.*s, align 1\n", r_right_val,
+                    rhs->len, rhs->name);
+        }
+        int r_right_i32_val = r_register(rctx);
+        push_code(code, "  %%%d = zext i8 %%%d to i32\n", r_right_i32_val,
+                  r_right_val);
+        int r_right_i32 = r_register(rctx);
+        push_code(code, "  %%%d = alloca i32, align 4\n", r_right_i32);
+        push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n",
+                  r_right_i32_val, r_right_i32);
+        free_variable(rhs);
+        rhs = new_variable(r_right_i32, TYPE_I32, NULL, 0);
+        break;
+      }
+
       if (!is_same_type(lvar, rhs)) {
         error("代入の左辺値と右辺値の型が一致しません\n左辺: %s, 右辺: %s",
               get_variable_type_str(lvar), get_variable_type_str(rhs));

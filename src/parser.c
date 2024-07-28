@@ -920,7 +920,7 @@ Node *primary(Token **token) {
     Token *next_tok = *token;
     while (consume_reserved(token, TK_STRING)) {
       Token *new_tok = calloc(1, sizeof(Token));
-      new_tok->str = calloc(1, next_tok->len + tok->len);
+      new_tok->str = calloc(next_tok->len + tok->len + 1, sizeof(char));
       new_tok->len = sprintf(new_tok->str, "%.*s%.*s", tok->len, tok->str,
                              next_tok->len, next_tok->str);
       tok = new_tok;

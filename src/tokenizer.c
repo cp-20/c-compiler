@@ -283,8 +283,11 @@ Token *tokenize(char *p) {
     // 文字
     if (*p == '\'') {
       char *start = ++p;
-      if (*p == '\\') p++;
-      if (*p == '\'') error_at(start, "文字がありません");
+      if (*p == '\\') {
+        p++;
+      } else if (*p == '\'') {
+        error_at(start, "文字がありません");
+      }
       p++;
       if (*p != '\'') error_at(start, "文字が長すぎます");
       cur = new_token(TK_CHARL, cur, start);

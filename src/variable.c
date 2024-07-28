@@ -276,9 +276,9 @@ void free_variable(Variable* var) {
   if (var->type == TYPE_STRUCT) return;
   free_variable(var->ptr_to);
   free(var->value);
-  print_debug("free_variable: %p", var->name);
+  // print_debug("free_variable: %p", var->name);
   free(var->name);
-  print_debug("free_variable end: %p", var->name);
+  // print_debug("free_variable end: %p", var->name);
   free(var);
 }
 

@@ -38,7 +38,7 @@ char* process_include(char* input, vector* included_files) {
   p++;
   char* q = p;
   while (*q && *q != '>' && *q != '"') q++;
-  if (!*q) {
+  if (*q == '\0') {
     error_at(q, "閉じられていない include ディレクティブです");
     return NULL;
   }
@@ -130,11 +130,11 @@ char* process_define(char* input) {
     // 文字列中はスキップ
     if (*r == '"') {
       r++;
-      while (*r != '"') r++;
+      while ((*r != '"' || r[-1] == '\\') && *r != '\n') r++;
     }
     if (*r == '\'') {
       r++;
-      while (*r != '\'') r++;
+      while ((*r != '\'' || r[-1] == '\\') && *r != '\n') r++;
     }
 
     if (strncmp(r, name, len) == 0) {
@@ -170,7 +170,7 @@ char* preprocess(char* input) {
       strncat(output, q, p - q);
       p = process_include(p, included_files);
       q = p;
-    };
+    }
 
     if (strncmp(p, "#pragma ", 8) == 0) {
       print_debug(COL_BLUE "[preprocessor] " COL_RESET

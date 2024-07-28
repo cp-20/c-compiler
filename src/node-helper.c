@@ -71,6 +71,12 @@ Variable* get_node_type(Node* node, vector* locals) {
     }
     case ND_STRING:
       return new_variable(0, TYPE_PTR, new_variable(0, TYPE_I8, NULL, 0), 0);
+    case ND_CALL: {
+      Variable* ret = copy_var_if_needed(node->call->ret);
+      if (ret != NULL) return ret;
+      error("関数 %.*s の戻り値の型がわかりません", node->call->len,
+            node->call->name);
+    }
     default:
       error("ノード %s の型はわかりません", get_node_kind_name(node->kind));
       return NULL;

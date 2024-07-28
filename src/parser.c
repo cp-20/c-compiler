@@ -26,6 +26,7 @@ vector *global_typedefs;
 vector *global_strings;
 vector *global_local_structs;
 vector *global_globals;
+vector *global_functions;
 int anon_structs_index;
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
@@ -103,6 +104,16 @@ int get_offset() {
   return offset;
 }
 
+Function *get_function(Token *tok) {
+  for (int i = 0; i < global_functions->size; i++) {
+    Function *func = vec_at(global_functions, i);
+    if (func->len == tok->len && !memcmp(tok->str, func->name, func->len)) {
+      return func;
+    }
+  }
+  return NULL;
+}
+
 void setup_program() {
   Variable *void_ptr =
       new_variable(-1, TYPE_PTR, new_variable(-1, TYPE_VOID, NULL, 0), 0);
@@ -175,6 +186,7 @@ Program *program(Token **token) {
   global_globals = new_vector();
   global_typedefs = new_vector();
   global_strings = new_vector();
+  global_functions = new_vector();
   anon_structs_index = 0;
   setup_program();
   while ((*token)->kind != TK_EOF) {
@@ -201,6 +213,7 @@ Program *program(Token **token) {
   program->globals = global_globals;
   program->typedefs = global_typedefs;
   program->strings = global_strings;
+  vec_free(global_functions);
 
   return program;
 }
@@ -305,6 +318,8 @@ Function *global_decl(Token **token) {
       func->len = tok->len;
       func->ret = return_type;
       func->have_va_arg = false;
+
+      vec_push_last(global_functions, func);
 
       vector *locals = new_vector();
       int argc = 0;
@@ -857,7 +872,12 @@ Node *primary(Token **token) {
       node->call = calloc(1, sizeof(Call));
       node->call->name = call_name;
       node->call->len = strlen(call_name);
-      node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);
+      Function *func = get_function(tok);
+      if (func->ret != NULL) {
+        node->call->ret = copy_var(func->ret);
+      } else {
+        node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);
+      }
       node->call->args = new_vector();
       while (!consume(token, ")")) {
         vec_push_last(node->call->args, ternary(token));

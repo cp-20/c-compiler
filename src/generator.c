@@ -452,7 +452,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       }
 
       // 関数呼び出し本体
-      int r_result_val = r_register(rctx);
       char* return_type = get_variable_type_str(node->call->ret);
       if (node->cast != NULL) {
         free(return_type);
@@ -463,8 +462,15 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         free(return_ptype);
         return_ptype = get_ptr_variable_type_str(node->cast);
       }
-      push_code(code, "  %%%d = call %s @%.*s(", r_result_val, return_type,
-                node->call->len, node->call->name);
+      int r_result_val;
+      if (node->call->ret->type == TYPE_VOID) {
+        push_code(code, "  call void @%.*s(", node->call->len,
+                  node->call->name);
+      } else {
+        r_result_val = r_register(rctx);
+        push_code(code, "  %%%d = call %s @%.*s(", r_result_val, return_type,
+                  node->call->len, node->call->name);
+      }
       for (int i = 0; i < node->call->args->size; i++) {
         if (i > 0) push_code(code, ", ");
         push_code(code, "%s noundef %%%d", get_variable_type_str(args[i]),
@@ -473,12 +479,14 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(code, ")\n");
 
       // 結果をスタックに積む
-      int r_result = r_register(rctx);
-      push_code(code, "  %%%d = alloca %s, align 4\n", r_result, return_type);
-      push_code(code, "  store %s %%%d, %s %%%d, align 4\n", return_type,
-                r_result_val, return_ptype, r_result);
-      push_variable_with_cast_if_needed(
-          stack, with_reg(node->call->ret, r_result), node->cast);
+      if (node->call->ret->type != TYPE_VOID) {
+        int r_result = r_register(rctx);
+        push_code(code, "  %%%d = alloca %s, align 4\n", r_result, return_type);
+        push_code(code, "  store %s %%%d, %s %%%d, align 4\n", return_type,
+                  r_result_val, return_ptype, r_result);
+        push_variable_with_cast_if_needed(
+            stack, with_reg(node->call->ret, r_result), node->cast);
+      }
 
       for (int i = 0; i < node->call->args->size; i++) {
         free_variable(args[i]);
@@ -1075,9 +1083,21 @@ Code* generate_func(Function* func) {
 
   if (memcmp(func->name, "main", 4) == 0) {
     push_code(code, "  ret i32 0\n");
-  }
-  if (func->ret->type == TYPE_VOID) {
+  } else if (func->ret->type == TYPE_VOID) {
     push_code(code, "  ret void\n");
+  } else {
+    char* ret_type = get_variable_type_str(func->ret);
+    char* ret_ptype = get_ptr_variable_type_str(func->ret);
+    int ret_size = get_variable_size(func->ret);
+    int r_ret_var = r_register(rctx);
+    push_code(code, "  %%%d = alloca %s, align %d\n", r_ret_var, ret_type,
+              ret_size);
+    int r_ret_val = r_register(rctx);
+    push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_ret_val,
+              ret_type, ret_ptype, r_ret_var, ret_size);
+    push_code(code, "  ret %s %%%d\n", ret_type, r_ret_val);
+    free(ret_type);
+    free(ret_ptype);
   }
 
   push_code(code, "}\n");

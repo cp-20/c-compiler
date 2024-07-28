@@ -230,8 +230,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
                 cond_type, cond_ptype, cond->reg, cond_size);
       int r_cond_bool = r_register(rctx);
-      push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
-                r_cond_val);
+      if (cond->type == TYPE_PTR) {
+        push_code(code, "  %%%d = icmp ne %s %%%d, null\n", r_cond_bool,
+                  cond_type, r_cond_val);
+      } else {
+        push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
+                  r_cond_val);
+      }
 
       int r_then_label = r_register(rctx);
 
@@ -769,6 +774,20 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
                   r_right_ext_val, r_right_i32);
         free_variable(rval);
         rval = new_variable(r_right_i32, TYPE_I32, NULL, 0);
+      }
+      if (lval->type == TYPE_I8 && rval->type == TYPE_I32) {
+        int r_left_val = r_register(rctx);
+        push_code(code, "  %%%d = load i8, i8* %%%d, align 1\n", r_left_val,
+                  lval->reg);
+        int r_left_ext_val = r_register(rctx);
+        push_code(code, "  %%%d = sext i8 %%%d to i32\n", r_left_ext_val,
+                  r_left_val);
+        int r_left_i32 = r_register(rctx);
+        push_code(code, "  %%%d = alloca i32, align 4\n", r_left_i32);
+        push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n",
+                  r_left_ext_val, r_left_i32);
+        free_variable(lval);
+        lval = new_variable(r_left_i32, TYPE_I32, NULL, 0);
       }
 
       Variable* result_val = get_calc_result_type(node->kind, lval, rval);

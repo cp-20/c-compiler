@@ -7,7 +7,7 @@
 #include "vector.h"
 
 void print_debug_token(char *type, Token **token) {
-  if (!f_debug) return;
+  if (true) return;
   int len = (*token)->len > 0 ? (*token)->len : 1;
   char *line = (*token)->str;
   char *line_start = line;
@@ -160,7 +160,7 @@ void setup_program() {
   vec_push_last(global_typedefs, var_bool);
 
   free_variable(void_ptr);
-};
+}
 
 char *function_conversion(char *name) {
   if (strcmp(name, "va_end") == 0) {
@@ -172,6 +172,12 @@ char *function_conversion(char *name) {
   if (strcmp(name, "va_start") == 0) {
     char *alt = calloc(14, sizeof(char));
     sprintf(alt, "llvm.va_start");
+    free(name);
+    return alt;
+  }
+  if (strcmp(name, "memcpy") == 0) {
+    char *alt = calloc(22, sizeof(char));
+    sprintf(alt, "llvm.memcpy.p0.p0.i64");
     free(name);
     return alt;
   }
@@ -520,7 +526,7 @@ Node *stmt(Token **token) {
       if (!is_case) {
         if (!consume_reserved(token, TK_DEFAULT)) {
           error_at((*token)->str, "caseまたはdefaultではありません");
-        };
+        }
       }
 
       Node *case_node = calloc(1, sizeof(Node));
@@ -1099,7 +1105,7 @@ Variable *type(Token **token, bool exclude_ptr, bool is_typedef) {
     if (var != NULL) {
       var = copy_var_if_needed(var);
       consume_ident(token);
-    };
+    }
   }
 
   if (var == NULL) {

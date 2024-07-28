@@ -339,7 +339,7 @@ void free_function(Function *func) {
   }
   vec_free(func->locals);
   for (int i = 0; i < func->structs->size; i++) {
-    free_variable(vec_at(func->structs, i));
+    free_struct(vec_at(func->structs, i));
   }
   vec_free(func->structs);
   for (int i = 0; i < func->body->size; i++) {

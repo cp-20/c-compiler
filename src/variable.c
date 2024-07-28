@@ -13,10 +13,12 @@
 Variable* new_variable(int reg, Type type, Variable* ptr_to, int array_size) {
   Variable* var = calloc(1, sizeof(Variable));
   var->name = NULL;
+  var->len = 0;
   var->reg = reg;
   var->type = type;
   var->ptr_to = ptr_to;
   var->array_size = array_size;
+  var->value = NULL;
   return var;
 }
 
@@ -26,6 +28,12 @@ Variable* with_reg(Variable* var, int reg) {
   return new_var;
 }
 
+Variable* copy_var_if_needed(Variable* var) {
+  if (var == NULL) return NULL;
+  if (var->type == TYPE_STRUCT) return var;
+  return copy_var(var);
+}
+
 Variable* copy_var(Variable* var) {
   if (var == NULL) return NULL;
   Variable* new_var = calloc(1, sizeof(Variable));
@@ -33,7 +41,7 @@ Variable* copy_var(Variable* var) {
   new_var->type = var->type;
   new_var->array_size = var->array_size;
   new_var->len = var->len;
-  new_var->ptr_to = copy_var(var->ptr_to);
+  new_var->ptr_to = copy_var_if_needed(var->ptr_to);
   if (var->name != NULL) {
     new_var->name = calloc(var->len + 1, sizeof(char));
     sprintf(new_var->name, "%.*s", var->len, var->name);
@@ -51,7 +59,7 @@ Variable* copy_var(Variable* var) {
       sprintf(new_field->name, "%.*s", field->len, field->name);
       new_field->len = field->len;
       new_field->offset = field->offset;
-      new_field->var = copy_var(field->var);
+      new_field->var = copy_var_if_needed(field->var);
       vec_push_last(new_var->fields, new_field);
     }
   }
@@ -114,7 +122,8 @@ char* get_variable_type_str(Variable* var) {
 }
 
 char* get_ptr_variable_type_str(Variable* var) {
-  Variable* ptr_var = new_variable(-1, TYPE_PTR, copy_var(var), -1);
+  Variable* ptr_var = new_variable(
+      -1, TYPE_PTR, var->type == TYPE_STRUCT ? var : copy_var(var), -1);
   char* result = get_variable_type_str(ptr_var);
   free_variable(ptr_var);
   return result;
@@ -260,14 +269,23 @@ void free_lvar(LVar* lvar) {
 
 void free_variable(Variable* var) {
   if (var == NULL) return;
+  if (var->type == TYPE_STRUCT) return;
+  free_variable(var->ptr_to);
+  free(var->value);
+  print_debug("free_variable: %p", var->name);
+  free(var->name);
+  print_debug("free_variable end: %p", var->name);
+  free(var);
+}
+
+void free_struct(Variable* var) {
+  if (var == NULL) return;
   if (var->fields != NULL) {
     for (int i = 0; i < var->fields->size; i++) {
       free_lvar(vec_at(var->fields, i));
     }
     vec_free(var->fields);
   }
-  free_variable(var->ptr_to);
-  free(var->value);
   free(var->name);
   free(var);
 }

@@ -341,6 +341,10 @@ assert "int main() { int a = 0; int i = 10; while(i--) { if (i == 5) break; a++;
 describe "switch"
 assert "int main() { int a = 3; switch (a) { case 1: print(21); break; case 2: print(22); break; case 3: print(23); break; } }" "23"
 assert "int main() { int a = 10; switch (a) { case 1: print(31); break; case 2: print(32); break; case 3: print(33); break; default: print(34); break; } }" "34"
+assert "int main() { int a = 1; switch (a) { case 1: { int b = 10; a = 5; break; } case 2: { int b = 3; a = 10; break; } } print(a); }" "5"
+
+describe "ブロックスコープ"
+assert "int main() { int a = 3; { int a = 5; print(a); } print(a); }" "5 3"
 
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "

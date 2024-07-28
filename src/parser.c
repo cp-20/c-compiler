@@ -76,7 +76,8 @@ int find_struct_field(Token *tok, Variable *struct_var) {
               tok->len, tok->str);
   for (int i = 0; i < struct_var->fields->size; i++) {
     LVar *field = vec_at(struct_var->fields, i);
-    if (field->len == tok->len && !memcmp(tok->str, field->name, field->len)) {
+    if (field->len == tok->len &&
+        memcmp(tok->str, field->name, field->len) == 0) {
       return i;
     }
   }
@@ -200,6 +201,7 @@ Program *program(Token **token) {
   program->globals = global_globals;
   program->typedefs = global_typedefs;
   program->strings = global_strings;
+
   return program;
 }
 
@@ -260,10 +262,16 @@ Function *global_decl(Token **token) {
     return NULL;
   }
 
-  Variable *return_type = type(token, false, true);
+  Variable *return_type = type(token, false, f_typedef);
   if (return_type != NULL) {
     if (return_type->type == TYPE_STRUCT) {
-      vec_push_last(global_structs, return_type);
+      Token *tok = calloc(1, sizeof(Token));
+      tok->kind = TK_IDENT;
+      tok->str = return_type->name;
+      tok->len = return_type->len;
+      Variable *st = find_struct_from_vector(tok, global_structs);
+      if (st == NULL) vec_push_last(global_structs, return_type);
+      free(tok);
     }
 
     Token *tok = consume_ident(token);
@@ -509,10 +517,14 @@ Node *stmt(Token **token) {
 
       vector *stmts = new_vector();
       if (consume(token, "{")) {
+        vector *locals = new_vector();
+        vec_push_first(global_locals, locals);
         while (!consume(token, "}")) {
           vec_push_last(stmts, stmt(token));
         }
+        vec_shift(global_locals);
         case_node->rhs = new_node(ND_BLOCK, NULL, NULL);
+        case_node->rhs->locals = locals;
       } else {
         while ((*token)->kind != TK_CASE && (*token)->kind != TK_DEFAULT &&
                !((*token)->kind == TK_RESERVED && (*token)->str[0] == '}' &&
@@ -560,7 +572,7 @@ Node *local_decl(Token **token) {
     if (tok == NULL) {
       error_at((*token)->str, "識別子ではありません");
     }
-    LVar *lvar = find_lvar(tok);
+    LVar *lvar = find_lvar_from_vector(tok, locals);
     if (lvar != NULL) {
       error_at(tok->str, "変数が二重定義されています");
     }
@@ -570,7 +582,7 @@ Node *local_decl(Token **token) {
     lvar->len = tok->len;
     lvar->offset = get_offset();
 
-    Variable *var = copy_var(var_type);
+    Variable *var = copy_var_if_needed(var_type);
     for (int nest = ref_nest; nest > 0; nest--) {
       Variable *ptr = new_variable(-1, TYPE_PTR, var, 0);
       var = ptr;
@@ -642,8 +654,8 @@ Node *local_decl(Token **token) {
       }
     }
   } while (consume(token, ","));
-  node->stmts = stmts;
   free_variable(var_type);
+  node->stmts = stmts;
   return node;
 }
 
@@ -925,12 +937,7 @@ Node *parse_primary_access(Token **token, Node *node) {
         return NULL;
       }
       Variable *struct_var = get_node_type(node, global_locals);
-      print_debug("struct_var = %d", struct_var->type);
       int field_index = find_struct_field(tok, struct_var->ptr_to);
-      print_debug("field_index = %d", field_index);
-      LVar *field = vec_at(struct_var->ptr_to->fields, field_index);
-      print_debug("field = %s", get_variable_type_str(field->var));
-      print_debug("field");
       if (field_index == -1) {
         error_at(tok->str, "メンバーが存在しません");
         return NULL;
@@ -964,6 +971,7 @@ Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
   Variable *var = find_struct(tok);
 
   if (consume(token, "{")) {
+    bool f_override = true;
     if (var != NULL) {
       if (var->reg != -1) {
         error_at(tok->str, "変数が二重定義されています");
@@ -971,6 +979,7 @@ Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
       }
     } else {
       var = calloc(1, sizeof(Variable));
+      f_override = false;
     }
     var->type = TYPE_STRUCT;
     var->fields = new_vector();
@@ -978,7 +987,7 @@ Variable *parse_struct(Token **token, bool is_declare, bool is_typedef) {
     memcpy(var->name, tok->str, tok->len);
     var->len = tok->len;
     var->reg = 0;
-    if (!is_declare) {
+    if (!is_declare && !f_override) {
       vec_push_last(global_local_structs, var);
     }
 
@@ -1068,13 +1077,13 @@ Variable *type(Token **token, bool exclude_ptr, bool is_typedef) {
   if (var == NULL) {
     var = find_typedef(*token);
     if (var != NULL) {
-      var = with_reg(var, -1);
+      var = copy_var_if_needed(var);
       consume_ident(token);
     };
   }
 
   if (var == NULL) {
-    var = copy_var(parse_struct(token, false, is_typedef));
+    var = parse_struct(token, false, is_typedef);
   }
 
   if (!exclude_ptr) {

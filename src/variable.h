@@ -41,6 +41,8 @@ Variable* new_variable(int reg, Type type, Variable* ptr_to, int array_size);
 
 Variable* with_reg(Variable* var, int reg);
 
+Variable* copy_var_if_needed(Variable* var);
+
 Variable* copy_var(Variable* var);
 
 void push_variable(vector* stack, Variable* var);
@@ -70,3 +72,5 @@ LVar* copy_lvar(LVar* lvar);
 void free_lvar(LVar* lvar);
 
 void free_variable(Variable* var);
+
+void free_struct(Variable* var);

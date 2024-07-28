@@ -18,8 +18,8 @@ vector* continue_labels;
 vector* break_labels;
 
 Variable* get_variable(Variable** locals, int offset) {
-  if (offset >= 0) return locals[offset];
-  return globals[-offset - 1];
+  Variable* var = offset >= 0 ? locals[offset] : globals[-offset - 1];
+  return copy_var_if_needed(var);
 }
 
 // 左辺値のポインタ (レジスタ) を返す
@@ -124,7 +124,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       Variable* var = new_variable(r_num, TYPE_I32, NULL, 0);
       push_variable_with_cast_if_needed(stack, var, node->cast);
       break;
-    };
+    }
     case ND_STRING: {
       int r_string = r_register(rctx);
       push_code(code, "  %%%d = alloca i8*, align 8\n", r_string);
@@ -159,9 +159,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     case ND_LVAR: {
       Variable* var = get_variable(locals_r, node->offset);
       char* var_type = get_variable_type_str(var);
-      print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_LVAR] " COL_RESET
-                           "generate var %d (%s)",
-                  node->offset, var_type);
       if (var->value != NULL) {
         // enum の場合は数値に置き換える
         merge_code(code, generate_node(new_node_num(*var->value), stack,
@@ -174,11 +171,10 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
             "  %%%d = getelementptr inbounds %s, ptr %%%d, i64 0, i64 0\n",
             r_var, var_type, var->reg);
         push_variable_with_cast_if_needed(
-            stack, new_variable(r_var, TYPE_PTR, copy_var(var->ptr_to), 0),
-            node->cast);
+            stack, new_variable(r_var, TYPE_PTR, var->ptr_to, 0), node->cast);
       } else {
         // それ以外の場合はそのまま返す
-        push_variable_with_cast_if_needed(stack, copy_var(var), node->cast);
+        push_variable_with_cast_if_needed(stack, var, node->cast);
       }
 
       free(var_type);
@@ -188,7 +184,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       Variable* lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
       if (node->rhs->kind == ND_CALL) {
         free(node->rhs->call->ret);
-        node->rhs->call->ret = copy_var(lvar);
+        node->rhs->call->ret = copy_var_if_needed(lvar);
       }
       merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
 
@@ -523,7 +519,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
     case ND_REF: {
       Variable* lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
       int r_result = r_register(rctx);
-      Variable* lvar_ptr = new_variable(r_result, TYPE_PTR, copy_var(lvar), -1);
+      Variable* lvar_ptr =
+          new_variable(r_result, TYPE_PTR, copy_var_if_needed(lvar), -1);
       char* lvar_ptr_type = get_variable_type_str(lvar_ptr);
       char* lvar_ptr_ptype = get_ptr_variable_type_str(lvar_ptr);
       push_code(code, "  %%%d = alloca %s, align 8\n", r_result, lvar_ptr_type);
@@ -688,8 +685,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, rctx rctx) {
       for (int i = 0; i < node->stmts->size; i++) {
         case_labels[i] = r_next_case_label;
         Node* case_node = vec_at(node->stmts, i);
-        Node* stmt = case_node->rhs;
-        merge_code(switch_cases, generate_node(stmt, stack, locals_r, rctx));
+        merge_code(switch_cases,
+                   generate_node(case_node->rhs, stack, locals_r, rctx));
         r_next_case_label = r_register(rctx);
         push_code(switch_cases, "  br label %%%d\n", r_next_case_label);
         push_code(switch_cases, "%d:\n", r_next_case_label);
@@ -1043,7 +1040,9 @@ Code* generate_func(Function* func) {
     int r = r_register(rctx);
     push_code(code, "  ; %.*s (local)\n", lvar->len, lvar->name);
     push_code(code, "  %%%d = alloca %s, align %d\n", r, var_type, var_size);
+    print_debug("with_reg before (lvar->var = %p)", lvar->var);
     locals_r[i] = with_reg(lvar->var, r);
+    print_debug("with_reg after");
     free(var_type);
   }
 

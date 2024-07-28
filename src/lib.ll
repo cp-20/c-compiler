@@ -9,6 +9,7 @@ declare noalias ptr @malloc(i64 noundef) #0
 declare ptr @realloc(ptr noundef, i64 noundef) #0
 declare void @free(ptr noundef) #0
 declare void @exit(i32 noundef) #0
+declare i32 @memcmp(ptr noundef, ptr noundef, i64 noundef) #0
 
 ; stdarg.h
 declare void @llvm.va_start(ptr) #0

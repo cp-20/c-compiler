@@ -24,6 +24,7 @@ typedef enum {
   ND_RETURN,    // return
   ND_IF,        // if
   ND_WHILE,     // while
+  ND_DO,        // do-while
   ND_FOR,       // for
   ND_CONTINUE,  // continue
   ND_BREAK,     // break

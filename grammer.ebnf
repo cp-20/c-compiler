@@ -8,6 +8,7 @@ stmt           = expr ";"
                | "{" stmt* "}"
                | "if" "(" expr ")" stmt ("else" stmt)?
                | "while" "(" expr ")" stmt
+               | "do" stmt "while" "(" expr ")" ";"
                | "for" "(" expr? ";" expr? ";" expr? ")" stmt
                | "return" expr? ";"
                | "break" ";"

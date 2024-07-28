@@ -467,6 +467,18 @@ Node *stmt(Token **token) {
     return node;
   }
 
+  if (consume_reserved(token, TK_DO)) {
+    node = calloc(1, sizeof(Node));
+    node->kind = ND_DO;
+    node->lhs = stmt(token);
+    expect_reserved(token, TK_WHILE);
+    expect(token, "(");
+    node->rhs = expr(token);
+    expect(token, ")");
+    expect(token, ";");
+    return node;
+  }
+
   if (consume_reserved(token, TK_FOR)) {
     node = calloc(1, sizeof(Node));
     node->kind = ND_FOR;

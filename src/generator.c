@@ -331,6 +331,60 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       free(cond_ptype);
       break;
     }
+    case ND_DO: {
+      //   br label %start_label
+      // break_label:
+      //   br label %end_label
+      // start_label(continue_label):
+      //   ループ内の処理
+      //   条件式の評価
+      //   br i1 %cond, label %start_label, label %end_label
+      // end_label:
+
+      Code* break_block = init_code();
+      int r_break_label = r_register(rctx);
+      int* r_break_label_ptr = malloc(sizeof(int));
+      *r_break_label_ptr = r_break_label;
+      vec_push_last(break_labels, r_break_label_ptr);
+      push_code(break_block, "%d:\n", r_break_label);
+
+      int r_start_label = r_register(rctx);
+      int* r_continue_label_ptr = malloc(sizeof(int));
+      *r_continue_label_ptr = r_start_label;
+      vec_push_last(continue_labels, r_continue_label_ptr);
+      push_code(code, "  br label %%%d\n", r_start_label);
+
+      Code* block = init_code();
+      push_code(block, "%d:\n", r_start_label);
+      merge_code(block, generate_node(node->lhs, stack, locals_r, rctx));
+      merge_code(block, generate_node(node->rhs, stack, locals_r, rctx));
+      Variable* cond = pop_variable(stack);
+      char* cond_type = get_variable_type_str(cond);
+      char* cond_ptype = get_ptr_variable_type_str(cond);
+      int cond_size = get_variable_size(cond);
+      int r_cond_val = r_register(rctx);
+      push_code(block, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
+                cond_type, cond_ptype, cond->reg, cond_size);
+      int r_cond_bool = r_register(rctx);
+      push_code(block, "  %%%d = icmp ne %s %%%d, %s\n", r_cond_bool, cond_type,
+                r_cond_val, cond->type == TYPE_PTR ? "null" : "0");
+      int r_end_label = r_register(rctx);
+      push_code(block, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
+                r_start_label, r_end_label);
+      push_code(break_block, "  br label %%%d\n", r_end_label);
+      merge_code(code, break_block);
+      push_code(block, "%d:\n", r_end_label);
+      merge_code(code, block);
+
+      vec_pop(continue_labels);
+      vec_pop(break_labels);
+      free(r_continue_label_ptr);
+      free(r_break_label_ptr);
+      free_variable(cond);
+      free(cond_type);
+      free(cond_ptype);
+      break;
+    }
     case ND_FOR: {
       //   初期化式
       // start_label:

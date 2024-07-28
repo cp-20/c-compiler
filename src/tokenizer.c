@@ -156,6 +156,13 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    // do-while文
+    if (strncmp(p, "do", 2) == 0 && !is_alpha(p[2]) && !is_num(p[2])) {
+      cur = new_token(TK_DO, cur, p);
+      p += 2;
+      continue;
+    }
+
     // for文
     if (strncmp(p, "for", 3) == 0 && !is_alpha(p[3]) && !is_num(p[3])) {
       cur = new_token(TK_FOR, cur, p);
@@ -310,6 +317,11 @@ bool consume_reserved(Token **token, TokenKind kind) {
   if ((*token)->kind != kind) return false;
   (*token) = (*token)->next;
   return true;
+}
+
+void expect_reserved(Token **token, TokenKind kind) {
+  if ((*token)->kind != kind) error_at((*token)->str, "予約語ではありません");
+  *token = (*token)->next;
 }
 
 bool consume(Token **token, char *op) {

@@ -16,6 +16,7 @@ typedef enum {
   TK_IF,        // if
   TK_ELSE,      // else
   TK_WHILE,     // while
+  TK_DO,        // do
   TK_FOR,       // for
   TK_CONTINUE,  // continue
   TK_BREAK,     // break
@@ -60,6 +61,8 @@ bool is_special2(char *p);
 Token *tokenize(char *p);
 
 bool consume_reserved(Token **token, TokenKind kind);
+
+void expect_reserved(Token **token, TokenKind kind);
 
 bool consume(Token **token, char *op);
 

@@ -225,6 +225,9 @@ assert "int main() { int a = 0; while (a < 3) a = a + 1; print(a); }" "3"
 assert "int main() { int a = 2; while (a < 16) a = a * 2; print(a); }" "16"
 assert "int main() { int a = 0, b = 1; while (a < 55) a = ((b = (a + b)) - a); print(a); }" "55"
 
+describe "do-while文"
+assert "int main() { int a = 0; do a = a + 1; while (a < 3); print(a); }" "3"
+
 describe "for文"
 assert "int main() { int a = 0; for (int i = 0; i < 3; i = i + 1) a = a + 1; print(a); }" "3"
 assert "int main() { int a = 2; for (int i = 0; i < 3; i = i + 1) a = a * 2; print(a); }" "16"

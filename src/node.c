@@ -79,6 +79,15 @@ Code *print_node(Node *node) {
     return code;
   }
 
+  if (node->kind == ND_DO) {
+    push_code(code, "do ");
+    merge_code(code, print_node(node->lhs));
+    push_code(code, " while (");
+    merge_code(code, print_node(node->rhs));
+    push_code(code, ")");
+    return code;
+  }
+
   if (node->kind == ND_FOR) {
     push_code(code, "for (");
     if (node->lhs) print_node(node->lhs);
@@ -274,6 +283,8 @@ char *get_node_kind_name(NodeKind kind) {
       return "ND_IF";
     case ND_WHILE:
       return "ND_WHILE";
+    case ND_DO:
+      return "ND_DO";
     case ND_FOR:
       return "ND_FOR";
     case ND_CONTINUE:

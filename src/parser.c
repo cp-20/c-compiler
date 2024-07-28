@@ -1086,7 +1086,7 @@ Variable *type(Token **token, bool exclude_ptr, bool is_typedef) {
     var = parse_struct(token, false, is_typedef);
   }
 
-  if (!exclude_ptr) {
+  if (!exclude_ptr && var != NULL) {
     int ref_nest = 0;
     while (consume(token, "*")) ref_nest++;
     for (int nest = ref_nest; nest > 0; nest--) {

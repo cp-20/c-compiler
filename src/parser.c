@@ -934,7 +934,7 @@ Node *primary(Token **token) {
     return node;
   }
 
-  tok = *token;
+  tok = copy_token(*token);
   if (consume_reserved(token, TK_STRING)) {
     Token *next_tok = *token;
     while (consume_reserved(token, TK_STRING)) {
@@ -942,19 +942,99 @@ Node *primary(Token **token) {
       new_tok->str = calloc(next_tok->len + tok->len + 1, sizeof(char));
       new_tok->len = sprintf(new_tok->str, "%.*s%.*s", tok->len, tok->str,
                              next_tok->len, next_tok->str);
+      free(tok->str);
+      free(tok);
       tok = new_tok;
       next_tok = *token;
     }
+    print_debug("string: %.*s", tok->len, tok->str);
+    // エスケープ処理
+    char *str = calloc(1024, sizeof(char));
+    int str_index = 0;
+    int len = 0;
+    for (int i = 0; i < tok->len; i++) {
+      if (tok->str[i] == '\\') {
+        i++;
+        if (tok->str[i] == 'a') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = '7';
+        } else if (tok->str[i] == 'b') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = '8';
+        } else if (tok->str[i] == 'f') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = 'C';
+
+        } else if (tok->str[i] == 'e') {
+          str[str_index++] = '\\';
+          str[str_index++] = '1';
+          str[str_index++] = 'B';
+        } else if (tok->str[i] == 'f') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = 'C';
+        } else if (tok->str[i] == 'n') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = 'A';
+        } else if (tok->str[i] == 'r') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = 'D';
+        } else if (tok->str[i] == 't') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = '9';
+        } else if (tok->str[i] == 'v') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = 'B';
+        } else if (tok->str[i] == '0') {
+          str[str_index++] = '\\';
+          str[str_index++] = '0';
+          str[str_index++] = '0';
+        } else if (tok->str[i] == '\"') {
+          str[str_index++] = '\\';
+          str[str_index++] = '2';
+          str[str_index++] = '2';
+        } else if (tok->str[i] == '\\') {
+          str[str_index++] = '\\';
+          str[str_index++] = '\\';
+        } else {
+          str[str_index++] = tok->str[i];
+        }
+        len++;
+        continue;
+      }
+      str[str_index++] = tok->str[i];
+      len++;
+      if (str_index >= 1024) {
+        error_at(tok->str, "文字列が長すぎます");
+      }
+    }
+    print_debug("string: %.*s (len = %d)", tok->len, tok->str, tok->len);
+    Token *escaped_tok = calloc(1, sizeof(Token));
+    escaped_tok->str = str;
+    escaped_tok->len = str_index;
+    escaped_tok->val = len;
+    print_debug("escaped string: %.*s (len = %d)", escaped_tok->len,
+                escaped_tok->str, escaped_tok->len);
+
     Node *node = calloc(1, sizeof(Node));
     node->kind = ND_STRING;
     node->offset = global_strings->size;
-    vec_push_last(global_strings, tok);
+    vec_push_last(global_strings, escaped_tok);
+    free(tok->str);
+    free(tok);
     return node;
   }
 
   Token *char_tok = *token;
   if (consume_reserved(token, TK_CHARL)) {
-    Node *node = new_node_num(char_tok->val);
+    Node *node = new_node_num(*char_tok->str);
     node->cast = new_variable(-1, TYPE_I8, NULL, 0);
     return node;
   }

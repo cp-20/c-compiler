@@ -14,6 +14,17 @@ Token *new_token(TokenKind kind, Token *cur, char *str) {
   return tok;
 }
 
+Token *copy_token(Token *tok) {
+  Token *new_tok = calloc(1, sizeof(Token));
+  new_tok->kind = tok->kind;
+  new_tok->next = tok->next;
+  new_tok->val = tok->val;
+  new_tok->str = calloc(tok->len + 1, sizeof(char));
+  strncpy(new_tok->str, tok->str, tok->len);
+  new_tok->len = tok->len;
+  return new_tok;
+}
+
 bool is_space(char c) {
   if (c == ' ') return true;
   if (c == '\t') return true;
@@ -284,7 +295,7 @@ Token *tokenize(char *p) {
     if (*p == '\'') {
       char *start = ++p;
       if (*p == '\\') {
-        p++;
+        start = ++p;
       } else if (*p == '\'') {
         error_at(start, "文字がありません");
       }
@@ -299,7 +310,7 @@ Token *tokenize(char *p) {
     // 文字列
     if (*p == '"') {
       char *start = ++p;
-      while (*p != '"' || *(p - 1) == '\\') {
+      while (*p != '"' || (p[-1] == '\\' && p[-2] != '\\')) {
         if (*p == '\0') error_at(start, "文字列が閉じられていません");
         p++;
       }

@@ -1104,7 +1104,7 @@ Code* generate_string(Token* tok, int index) {
   push_code(code,
             "@.str.%d = private unnamed_addr constant [%d x i8] c\"%.*s\\00\", "
             "align 1\n",
-            index, tok->len + 1, tok->len, tok->str);
+            index, tok->val + 1, tok->len, tok->str);
   return code;
 }
 

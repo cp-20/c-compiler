@@ -55,6 +55,7 @@ assert() {
     compiler_stderr=$(./dist/1cc "--output" "$tmp_ll_file" "$tmp_src_file" 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
+      echo -e "  ✅ Generate source" "$col_yellow=>$col_reset" "$tmp_src_file" >>"$result_file"
       echo -e "  ❌ Compile (1cc)" >>"$result_file"
       echo -e "" >>"$result_file"
       echo -e "$compiler_stderr" | awk '{print "  " $0}' >>"$result_file"
@@ -64,6 +65,7 @@ assert() {
     clang_compile_stderr=$(clang -v "$tmp_ll_file" -c -o $clang_output_object 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
+      echo -e "  ✅ Generate source" "$col_yellow=>$col_reset" "$tmp_src_file" >>"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
       echo -e "  ❌ Translate (clang)" >>"$result_file"
       echo -e "" >>"$result_file"
@@ -74,6 +76,7 @@ assert() {
     clang_link_stderr=$(clang -v "$clang_output_object" $(find . -wholename "./dist/lib/*.o") -o "$clang_output" 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
+      echo -e "  ✅ Generate source" "$col_yellow=>$col_reset" "$tmp_src_file" >>"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
       echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output_object" >>"$result_file"
       echo -e "  ❌ Link" >>"$result_file"
@@ -85,6 +88,7 @@ assert() {
     actual=$($clang_output)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
+      echo -e "  ✅ Generate source" "$col_yellow=>$col_reset" "$tmp_src_file" >>"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
       echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output_object" >>"$result_file"
       echo -e "  ✅ Link" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
@@ -101,6 +105,7 @@ assert() {
       exit 0
     else
       echo -e $ng "\"$input\"" "$col_yellow=>$col_reset" "\"$expected\"" >>"$result_file"
+      echo -e "  ✅ Generate source" "$col_yellow=>$col_reset" "$tmp_src_file" >>"$result_file"
       echo -e "  ✅ Compile (1cc)" "$col_yellow=>$col_reset" "$tmp_ll_file" >>"$result_file"
       echo -e "  ✅ Translate (clang)" "$col_yellow=>$col_reset" "$clang_output_object" >>"$result_file"
       echo -e "  ✅ Link" "$col_yellow=>$col_reset" "$clang_output" >>"$result_file"
@@ -350,6 +355,15 @@ assert "int main() { int a = 1; switch (a) { case 1: { int b = 10; a = 5; break;
 
 describe "ブロックスコープ"
 assert "int main() { int a = 3; { int a = 5; print(a); } print(a); }" "5 3"
+
+describe "エスケープシーケンス"
+assert "int main() { printf(\"a\\\\nb\"); }" "a b"
+assert "int main() { printf(\"a\\\\tb\"); }" "a b"
+assert "int main() { printf(\"\\\\\"\"); }" "\""
+assert "int main() { printf(\"\\\\\\\\\"); }" "\\"
+assert "int main() { printf(\"%%\"); }" "%"
+assert "int main() { print('\\''); }" "39"
+assert "int main() { print('\\\\\\\\'); }" "92"
 
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "

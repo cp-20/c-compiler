@@ -47,6 +47,8 @@ struct Token {
 
 Token *new_token(TokenKind kind, Token *cur, char *str);
 
+Token *copy_token(Token *token);
+
 bool is_space(char c);
 
 bool is_num(char c);

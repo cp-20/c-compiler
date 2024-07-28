@@ -1,12 +1,17 @@
 #!/bin/bash
 
 flag_show_ok_result=false
+compiler="./dist/1cc"
 
 # 引数を解析
 while [[ $# -gt 0 ]]; do
   case $1 in
   --show-ok-result)
     flag_show_ok_result=true
+    shift
+    ;;
+  --self)
+    compiler="./dist/compiler/1cc"
     shift
     ;;
   *)
@@ -52,7 +57,7 @@ assert() {
     clang_output="$(mktemp)"
 
     echo -e "$input" >"$tmp_src_file"
-    compiler_stderr=$(./dist/1cc "--output" "$tmp_ll_file" "$tmp_src_file" 2>&1)
+    compiler_stderr=$("$compiler" "--output" "$tmp_ll_file" "$tmp_src_file" 2>&1)
     if [ $? -ne 0 ]; then
       echo -e "$ng \"$input\"" >"$result_file"
       echo -e "  ✅ Generate source" "$col_yellow=>$col_reset" "$tmp_src_file" >>"$result_file"

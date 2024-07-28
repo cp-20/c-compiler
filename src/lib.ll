@@ -10,11 +10,11 @@ declare ptr @realloc(ptr noundef, i64 noundef) #0
 declare void @free(ptr noundef) #0
 declare void @exit(i32 noundef) #0
 declare i32 @memcmp(ptr noundef, ptr noundef, i64 noundef) #0
-declare void @llvm.memcpy.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg) #0
+declare void @memcpy(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg) #0
 
 ; stdarg.h
-declare void @llvm.va_start(ptr) #0
-declare void @llvm.va_end(ptr) #0
+declare void @va_start(ptr) #0
+declare void @va_end(ptr) #0
 
 ; stdio.h
 declare i32 @printf(ptr noundef, ...) #0

@@ -183,12 +183,6 @@ char *function_conversion(char *name) {
     free(name);
     return alt;
   }
-  if (strcmp(name, "memcpy") == 0) {
-    char *alt = calloc(22, sizeof(char));
-    sprintf(alt, "llvm.memcpy.p0.p0.i64");
-    free(name);
-    return alt;
-  }
   return name;
 }
 
@@ -902,11 +896,10 @@ Node *primary(Token **token) {
       if (func != NULL) {
         node->call->ret = copy_var(func->ret);
       } else {
-        if (strcmp(call_name, "llvm.va_start") == 0) {
-          node->call->ret = new_variable(-1, TYPE_VOID, NULL, 0);
-        } else if (strcmp(call_name, "llvm.va_end") == 0) {
-          node->call->ret = new_variable(-1, TYPE_VOID, NULL, 0);
-        } else if (strcmp(call_name, "llvm.memcpy.p0.p0.i64") == 0) {
+        if (strcmp(call_name, "llvm.va_start") == 0 ||
+            strcmp(call_name, "llvm.va_end") == 0 ||
+            strcmp(call_name, "memcpy") == 0 ||
+            strcmp(call_name, "free") == 0 || strcmp(call_name, "exit") == 0) {
           node->call->ret = new_variable(-1, TYPE_VOID, NULL, 0);
         } else if (strcmp(call_name, "__errno_location") == 0) {
           node->call->ret = new_variable(
@@ -920,6 +913,9 @@ Node *primary(Token **token) {
         vec_push_last(node->call->args, ternary(token));
         if (consume(token, ")")) break;
         expect(token, ",");
+      }
+      if (strcmp(call_name, "llvm.va_start") == 0) {
+        free_node(vec_pop(node->call->args));
       }
     } else {
       node->kind = ND_LVAR;

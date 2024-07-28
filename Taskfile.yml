@@ -16,7 +16,7 @@ tasks:
   compile-compiler:
     cmds:
       - make
-      - ./dist/1cc --debug --output dist/compiler/{{ .CLI_ARGS }}.ll src/{{ .CLI_ARGS }}.c
+      - ./dist/1cc --output dist/compiler/{{ .CLI_ARGS }}.ll src/{{ .CLI_ARGS }}.c
       - clang dist/compiler/{{ .CLI_ARGS }}.ll -c -o dist/compiler/{{ .CLI_ARGS }}.o
       - clang dist/compiler/{{ .CLI_ARGS }}.o $(find . -wholename './dist/lib/*.o') -o dist/compiler/{{ .CLI_ARGS }}
     desc: Compile C source file with 1cc

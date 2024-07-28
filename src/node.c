@@ -40,11 +40,11 @@ Code *print_node(Node *node) {
   }
 
   if (node->kind == ND_LVAR) {
-    int offset = node->offset;
     if (node->offset < 0) {
-      offset = -node->offset - 1 - 32;
+      push_code(code, "global%d", -node->offset - 1);
+    } else {
+      push_code(code, "var%d", node->offset);
     }
-    push_code(code, "%c", 'a' + offset);
     if (node->kind == ND_ASSIGN) {
       merge_code(code, print_node(node->lhs));
       push_code(code, "=");

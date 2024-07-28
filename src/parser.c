@@ -7,7 +7,7 @@
 #include "vector.h"
 
 void print_debug_token(char *type, Token **token) {
-  if (true) return;
+  if (!f_debug) return;
   int len = (*token)->len > 0 ? (*token)->len : 1;
   char *line = (*token)->str;
   char *line_start = line;

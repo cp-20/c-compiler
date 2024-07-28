@@ -26,7 +26,8 @@ equality       = relational ("==" relational | "!=" relational)*
 relational     = add ("<" add | "<=" add | ">" add | ">=" add)*
 add            = mul ("+" mul | "-" mul)*
 mul            = unary ("*" unary | "/" unary)*
-unary          = "sizeof" (unary | type)
+unary          = primary
+               | "sizeof" (unary | type)
                | ("+" | "-")? primary
                | "!" primary
                | "++" primary

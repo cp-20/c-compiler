@@ -211,7 +211,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         push_code(code, "  store %s %%%d, %s @%.*s, align %d\n", type,
                   r_right_val, ptype, lvar->len, lvar->name, size);
       }
-      push_variable_with_cast_if_needed(stack, with_reg(rhs, lvar->reg),
+      push_variable_with_cast_if_needed(stack, with_reg(lvar, lvar->reg),
                                         node->cast);
       free_variable(rhs);
       free(type);
@@ -796,7 +796,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
                   val_type);
 
       int r_result_val = r_register(rctx);
-      if (is_pointer_like(lval) || is_pointer_like(rval)) {
+      if ((is_pointer_like(lval) || is_pointer_like(rval)) &&
+          (node->kind == ND_ADD || node->kind == ND_SUB)) {
         if (is_pointer_like(lval) && !is_pointer_like(rval)) {
           char* ptr_type = get_variable_type_str(lval->ptr_to);
           int r_ptr_diff = r_right_val;
@@ -856,9 +857,19 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
                                            : "sge";
           int r_middle = r_register(rctx) - 1;
           r_result_val++;
-          if (is_pointer_like(lval) || is_pointer_like(rval)) {
+          if (is_pointer_like(lval) && is_pointer_like(rval)) {
             push_code(code, "  %%%d = icmp %s ptr %%%d, %%%d\n", r_middle, op,
                       r_left_val, r_right_val);
+          } else if (is_pointer_like(lval) || is_pointer_like(rval)) {
+            int r_ptr_int_val = r_register(rctx) - 2;
+            r_result_val++;
+            r_middle++;
+            push_code(code, "  %%%d = ptrtoint %s %%%d to i32\n", r_ptr_int_val,
+                      is_pointer_like(lval) ? lval_type : rval_type,
+                      is_pointer_like(lval) ? r_left_val : r_right_val);
+            push_code(code, "  %%%d = icmp %s i32 %%%d, %%%d\n", r_middle, op,
+                      r_ptr_int_val,
+                      is_pointer_like(lval) ? r_right_val : r_left_val);
           } else {
             push_code(code, "  %%%d = icmp %s %s %%%d, %%%d\n", r_middle, op,
                       val_type, r_left_val, r_right_val);

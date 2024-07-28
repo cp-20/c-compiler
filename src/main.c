@@ -29,12 +29,12 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (!filename) {
+  if (filename == NULL) {
     error("ファイル名が指定されていません");
     return 1;
   }
 
-  if (!output_file) {
+  if (output_file == NULL) {
     output_file = "a.out";
   }
 

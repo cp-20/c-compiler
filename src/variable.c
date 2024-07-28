@@ -165,6 +165,9 @@ bool is_same_type(Variable* var1, Variable* var2) {
   }
 
   if (var1->type == TYPE_PTR) {
+    if (var1->ptr_to->type == TYPE_VOID || var2->ptr_to->type == TYPE_VOID) {
+      return true;
+    }
     return is_same_type(var1->ptr_to, var2->ptr_to);
   }
 
@@ -189,8 +192,9 @@ Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
     if (!is_same_type(lval, rval)) {
       error(
           "演算子の左辺値と右辺値の型が一致しません\n左辺: %s, 右辺: %s, "
-          "演算子: %d",
-          get_variable_type_str(lval), get_variable_type_str(rval), kind);
+          "演算子: %s",
+          get_variable_type_str(lval), get_variable_type_str(rval),
+          get_node_kind_name(kind));
     }
     return copy_var(lval);
   }

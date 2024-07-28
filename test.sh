@@ -286,6 +286,7 @@ assert "void *func(void *a) { return a; } int main() { int x = 7; int *a = (int*
 describe "グローバル変数"
 assert "int a; int main() { a = 3; print(a); }" "3"
 assert "int a; void func() { a = 5; } int main() { func(); print(a); }" "5"
+assert "char* a; int main() { a = \"Hello\"; if (a != NULL) { printf(\"%s\", a); } }" "Hello"
 
 describe "enum"
 assert "enum { A, B, C }; int main() { print(A); print(B); print(C); }" "0 1 2"

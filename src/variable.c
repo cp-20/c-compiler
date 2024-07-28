@@ -242,8 +242,8 @@ Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {
   return NULL;
 }
 
-int pow2[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 int align(int size) {
+  int pow2[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
   for (int i = 0; i < 10; i++) {
     if (size <= pow2[i]) {
       return pow2[i];

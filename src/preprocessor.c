@@ -153,7 +153,10 @@ char* process_define(char* input) {
 }
 
 char* preprocess(char* input) {
-  char* common = "#define NULL ((void*)0)\n#define true 1\n#define false 0\n";
+  char* common =
+      "#define NULL ((void*)0)\n#define true 1\n#define false 0\n#define "
+      "SEEK_END 2\n#define SEEK_SET 0\n#define SEEK_CUR 1\n#define errno "
+      "(*__errno_location ())\n";
   char* input_with_common = malloc(strlen(input) + strlen(common) + 1);
   sprintf(input_with_common, "%s%s", common, input);
   char* output = malloc(1024 * 1024);

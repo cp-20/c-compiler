@@ -93,7 +93,8 @@ char* get_variable_type_str(Variable* var) {
       Variable* p = var;
       while (p != NULL) {
         p = p->ptr_to;
-        if (p->type == TYPE_VOID) {
+        if (p->type == TYPE_VOID ||
+            (p->type == TYPE_STRUCT && p->fields == NULL)) {
           char* type = calloc(4, sizeof(char));
           sprintf(type, "ptr");
           return type;

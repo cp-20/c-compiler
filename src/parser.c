@@ -146,7 +146,8 @@ void setup_program() {
   vec_push_last(__va_list_tag->fields, ptr);
   vec_push_last(__va_list_tag->fields, ptr);
   vec_push_last(global_structs, __va_list_tag);
-  Variable *var_va_list = new_variable(-1, TYPE_ARRAY, __va_list_tag, 1);
+  Variable *var_va_list =
+      new_variable(-1, TYPE_ARRAY, copy_var(__va_list_tag), 1);
   var_va_list->name = calloc(8, sizeof(char));
   sprintf(var_va_list->name, "va_list");
   var_va_list->len = 7;
@@ -160,6 +161,13 @@ void setup_program() {
   vec_push_last(global_typedefs, var_bool);
 
   free_variable(void_ptr);
+
+  // FILE
+  Variable *var_FILE = new_variable(-1, TYPE_STRUCT, NULL, 0);
+  var_FILE->name = calloc(5, sizeof(char));
+  sprintf(var_FILE->name, "FILE");
+  var_FILE->len = 4;
+  vec_push_last(global_typedefs, var_FILE);
 }
 
 char *function_conversion(char *name) {
@@ -894,7 +902,18 @@ Node *primary(Token **token) {
       if (func != NULL) {
         node->call->ret = copy_var(func->ret);
       } else {
-        node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);
+        if (strcmp(call_name, "llvm.va_start") == 0) {
+          node->call->ret = new_variable(-1, TYPE_VOID, NULL, 0);
+        } else if (strcmp(call_name, "llvm.va_end") == 0) {
+          node->call->ret = new_variable(-1, TYPE_VOID, NULL, 0);
+        } else if (strcmp(call_name, "llvm.memcpy.p0.p0.i64") == 0) {
+          node->call->ret = new_variable(-1, TYPE_VOID, NULL, 0);
+        } else if (strcmp(call_name, "__errno_location") == 0) {
+          node->call->ret = new_variable(
+              -1, TYPE_PTR, new_variable(-1, TYPE_I32, NULL, 0), 0);
+        } else {
+          node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);
+        }
       }
       node->call->args = new_vector();
       while (!consume(token, ")")) {

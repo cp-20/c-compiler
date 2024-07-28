@@ -873,7 +873,7 @@ Node *primary(Token **token) {
       node->call->name = call_name;
       node->call->len = strlen(call_name);
       Function *func = get_function(tok);
-      if (func->ret != NULL) {
+      if (func != NULL) {
         node->call->ret = copy_var(func->ret);
       } else {
         node->call->ret = new_variable(-1, TYPE_I32, NULL, 0);

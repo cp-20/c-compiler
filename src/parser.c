@@ -183,6 +183,12 @@ char *function_conversion(char *name) {
     free(name);
     return alt;
   }
+  if (strcmp(name, "scanf") == 0) {
+    char *alt = calloc(15, sizeof(char));
+    sprintf(alt, "__isoc99_scanf");
+    free(name);
+    return alt;
+  }
   return name;
 }
 

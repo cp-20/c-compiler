@@ -29,6 +29,7 @@ declare i32 @fclose(ptr noundef) #0
 declare i64 @ftell(ptr noundef) #0
 declare i64 @fread(ptr noundef, i64 noundef, i64 noundef, ptr noundef) #0
 declare i32 @fseek(ptr noundef, i64 noundef, i32 noundef) #0
+declare i32 @__isoc99_scanf(ptr noundef, ...) #0
 
 ; string.h
 declare ptr @strcat(ptr noundef, ptr noundef) #0

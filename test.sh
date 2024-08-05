@@ -282,6 +282,7 @@ assert "int main() { int a[3]; a[0] = 1; a[1] = 2; a[2] = 3; print(a[0] + a[1]);
 assert "int main() { int a[3]; a[0] = 1; a[1] = 2; a[2] = 3; int *p = a; print(*p); p++; print(*p); p++; print(*p); }" "1 2 3"
 assert "int main() { int a[3] = {1, 2, 3}; print(a[2]); }" "3"
 assert "int main() { int a[] = {1, 2, 3}; print(a[1]); }" "2"
+assert "int sum(int* arr, int n) { int result = 0; for (int i = 0; i < n; i++) { result += arr[i]; } return result; } int main() { int a[5] = {1, 2, 3, 4, 5}; print(sum(a, 5)); }" "15"
 
 describe "構造体"
 assert "int main() { struct { int a; } x; }" ""

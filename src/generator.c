@@ -175,6 +175,9 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
     case ND_LVAR: {
       Variable* var = get_variable(locals_r, node->offset);
       char* var_type = get_variable_type_str(var);
+      char* var_ptype = get_ptr_variable_type_str(var);
+      Variable* pvar = new_variable(-1, TYPE_PTR, copy_var(var), 0);
+      char* var_pptype = get_ptr_variable_type_str(pvar);
       if (var->value != NULL) {
         // enum の場合は数値に置き換える
         merge_code(code, generate_node(new_node_num(*var->value), stack,
@@ -186,14 +189,22 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
             code,
             "  %%%d = getelementptr inbounds %s, ptr %%%d, i64 0, i64 0\n",
             r_var, var_type, var->reg);
+        int r_var_ptr = r_register(rctx);
+        push_code(code, "  %%%d = alloca %s, align 8\n", r_var_ptr, var_ptype);
+        push_code(code, "  store %s %%%d, %s %%%d, align 8\n", var_ptype, r_var,
+                  var_pptype, r_var_ptr);
         push_variable_with_cast_if_needed(
-            stack, new_variable(r_var, TYPE_PTR, var->ptr_to, 0), node->cast);
+            stack, new_variable(r_var_ptr, TYPE_PTR, var->ptr_to, 0),
+            node->cast);
       } else {
         // それ以外の場合はそのまま返す
         push_variable_with_cast_if_needed(stack, var, node->cast);
       }
 
       free(var_type);
+      free(var_ptype);
+      free(var_pptype);
+      free_variable(pvar);
       break;
     }
     case ND_ASSIGN: {

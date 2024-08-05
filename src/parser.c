@@ -1036,7 +1036,20 @@ Node *primary(Token **token) {
 
   Token *char_tok = *token;
   if (consume_reserved(token, TK_CHARL)) {
-    Node *node = new_node_num(*char_tok->str);
+    int val = *char_tok->str;
+    int before = char_tok->str[-1];
+    if (before == '\\') {
+      if (val == '0') val = '\0';
+      if (val == 'a') val = '\a';
+      if (val == 'b') val = '\b';
+      if (val == 'e') val = '\e';
+      if (val == 'f') val = '\f';
+      if (val == 'n') val = '\n';
+      if (val == 'r') val = '\r';
+      if (val == 't') val = '\t';
+      if (val == 'v') val = '\v';
+    }
+    Node *node = new_node_num(val);
     node->cast = new_variable(-1, TYPE_I8, NULL, 0);
     return node;
   }

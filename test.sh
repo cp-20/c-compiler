@@ -370,6 +370,8 @@ assert "int main() { printf(\"\\\\\\\\\"); }" "\\"
 assert "int main() { printf(\"%%\"); }" "%"
 assert "int main() { print('\\''); }" "39"
 assert "int main() { print('\\\\\\\\'); }" "92"
+assert "int main() { print('\\\\n'); }" "10"
+assert "int main() { print('\\\\t'); }" "9"
 
 # 全てのテストが完了するのを待つ
 echo -n "Running tests: "

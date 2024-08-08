@@ -19,6 +19,7 @@ Variable* new_variable(int reg, Type type, Variable* ptr_to, int array_size) {
   var->ptr_to = ptr_to;
   var->array_size = array_size;
   var->value = NULL;
+  var->fields = NULL;
   return var;
 }
 
@@ -31,7 +32,8 @@ Variable* with_reg(Variable* var, int reg) {
 Variable* copy_var_if_needed(Variable* var) {
   if (var == NULL) return NULL;
   if (var->type == TYPE_STRUCT) return var;
-  return copy_var(var);
+  Variable* new_var = copy_var(var);
+  return new_var;
 }
 
 Variable* copy_var(Variable* var) {

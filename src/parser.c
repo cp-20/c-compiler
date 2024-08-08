@@ -1039,8 +1039,8 @@ Node *primary(Token **token) {
 
   Token *char_tok = *token;
   if (consume_reserved(token, TK_CHARL)) {
-    int val = *char_tok->str;
-    int before = char_tok->str[-1];
+    char val = char_tok->str[0];
+    char before = char_tok->str[-1];
     if (before == '\\') {
       if (val == '0') val = '\0';
       if (val == 'a') val = '\a';

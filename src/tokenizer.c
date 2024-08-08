@@ -302,7 +302,7 @@ Token *tokenize(char *p) {
       p++;
       if (*p != '\'') error_at(start, "文字が長すぎます");
       cur = new_token(TK_CHARL, cur, start);
-      cur->val = p - start;
+      cur->len = p - start;
       p++;
       continue;
     }

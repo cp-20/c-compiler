@@ -140,14 +140,17 @@ void setup_program() {
   LVar *i32 = calloc(1, sizeof(LVar));
   i32->var = new_variable(-1, TYPE_I32, NULL, 0);
   vec_push_last(__va_list_tag->fields, i32);
-  vec_push_last(__va_list_tag->fields, i32);
+  LVar *i32_2 = calloc(1, sizeof(LVar));
+  i32_2->var = new_variable(-1, TYPE_I32, NULL, 0);
+  vec_push_last(__va_list_tag->fields, i32_2);
   LVar *ptr = calloc(1, sizeof(LVar));
   ptr->var = copy_var(void_ptr);
   vec_push_last(__va_list_tag->fields, ptr);
-  vec_push_last(__va_list_tag->fields, ptr);
+  LVar *ptr2 = calloc(1, sizeof(LVar));
+  ptr2->var = copy_var(void_ptr);
+  vec_push_last(__va_list_tag->fields, ptr2);
   vec_push_last(global_structs, __va_list_tag);
-  Variable *var_va_list =
-      new_variable(-1, TYPE_ARRAY, copy_var(__va_list_tag), 1);
+  Variable *var_va_list = new_variable(-1, TYPE_ARRAY, __va_list_tag, 1);
   var_va_list->name = calloc(8, sizeof(char));
   sprintf(var_va_list->name, "va_list");
   var_va_list->len = 7;

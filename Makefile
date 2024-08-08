@@ -1,35 +1,40 @@
 CFLAGS=-std=c11 -g -static -Werror -Wall -Wextra
 SRCS=$(notdir $(wildcard src/*.c))
-OBJS=$(addprefix dist/,$(notdir $(SRCS:.c=.o)))
-OBJS_SELF=$(addprefix dist/compiler/,$(notdir $(SRCS:.c=.o)))
 LIBS=$(notdir $(wildcard src/lib/*.c))
 LIBOBJS=$(addprefix dist/lib/,$(notdir $(LIBS:.c=.o)))
-TARGET=dist/1cc
-TARGET_SELF=dist/compiler/1cc
+OBJS_1CC=$(addprefix dist/1cc/,$(notdir $(SRCS:.c=.o)))
+OBJS_2CC=$(addprefix dist/2cc/,$(notdir $(SRCS:.c=.o)))
+OBJS_3CC=$(addprefix dist/3cc/,$(notdir $(SRCS:.c=.o)))
+TARGET_1CC=dist/1cc/compiler
+TARGET_2CC=dist/2cc/compiler
+TARGET_3CC=dist/3cc/compiler
 
-1cc: $(TARGET)
+1cc: $(TARGET_1CC)
+2cc: $(TARGET_2CC)
+3cc: $(TARGET_3CC)
 
-self-1cc: $(TARGET_SELF)
+$(TARGET_1CC): $(OBJS_1CC) $(LIBOBJS)
+	clang $(CFLAGS) -o $@ $(OBJS_1CC)
+$(TARGET_2CC): $(OBJS_2CC) $(LIBOBJS)
+	clang $(CFLAGS) -o $@ $(OBJS_2CC)
+$(TARGET_3CC): $(OBJS_3CC) $(LIBOBJS)
+	clang $(CFLAGS) -o $@ $(OBJS_3CC)
 
-$(TARGET): $(OBJS) $(LIBOBJS)
-	clang $(CFLAGS) -o $@ $(OBJS)
-
-$(TARGET_SELF): $(OBJS_SELF) $(LIBOBJS)
-	clang $(CFLAGS) -o $@ $(OBJS_SELF)
-
-dist/%.o: src/%.c | dist
+dist/1cc/%.o: src/%.c | dist/1cc
 	clang $(CFLAGS) -c -o $@ $<
+
+dist/2cc/%.o: dist/2cc/%.ll | dist/2cc
+	clang $(CFLAGS) -c -o $@ $<
+dist/2cc/%.ll: src/%.c $(TARGET_1CC) src/lib.ll | dist/2cc
+	./$(TARGET_1CC) --output $@ $<
+
+dist/3cc/%.o: dist/3cc/%.ll | dist/3cc
+	clang $(CFLAGS) -c -o $@ $<
+dist/3cc/%.ll: src/%.c $(TARGET_2CC) src/lib.ll | dist/3cc
+	./$(TARGET_2CC) --output $@ $<
 
 dist/lib/%.o: src/lib/%.c | dist/lib
 	clang $(CFLAGS) -c -o $@ $<
-
-dist/compiler/%.o: dist/compiler/%.ll $(TARGET) | dist/compiler
-	clang $(CFLAGS) -c -o $@ $<
-
-dist/compiler/%.ll: src/%.c $(TARGET) src/lib.ll | dist/compiler
-	./$(TARGET) --output $@ $<
-
-.PRECIOUS: dist/compiler/%.ll
 
 dist:
 	mkdir -p dist
@@ -37,19 +42,34 @@ dist:
 dist/lib:
 	mkdir -p dist/lib
 
-dist/compiler:
-	mkdir -p dist/compiler
+dist/1cc:
+	mkdir -p dist/1cc
+dist/2cc:
+	mkdir -p dist/2cc
+dist/3cc:
+	mkdir -p dist/3cc
 
-test: $(TARGET)
-	./test.sh
+test-1cc: $(TARGET_1CC)
+	./test.sh --compiler $(TARGET_1CC)
+test-2cc: $(TARGET_2CC)
+	./test.sh --compiler $(TARGET_2CC)
+test-3cc: $(TARGET_3CC)
+	./test.sh --compiler $(TARGET_3CC)
 
-test-self: $(TARGET_SELF)
-	./test.sh --self
-
-test-ok: $(TARGET)
-	./test.sh --show-ok-result
+test-1cc-ok: $(TARGET_1CC)
+	./test.sh --show-ok-result --compiler $(TARGET_1CC)
+test-2cc-ok: $(TARGET_2CC)
+	./test.sh --show-ok-result --compiler $(TARGET_2CC)
+test-3cc-ok: $(TARGET_3CC)
+	./test.sh --show-ok-result --compiler $(TARGET_3CC)
 
 clean:
-	rm -f $(TARGET) dist/*.o dist/*~ dist/lib/*.o dist/compiler/*.o dist/compiler/*.ll
+	rm -f dist/lib/*.o \
+		$(TARGET_1CC) dist/1cc/*.o dist/1cc/*~ \
+		$(TARGET_2CC) dist/2cc/*.o dist/2cc/*.ll dist/2cc/*~ \
+		$(TARGET_3CC) dist/3cc/*.o dist/3cc/*.ll dist/3cc/*~
 
 .PHONY: test clean
+
+.PRECIOUS: dist/2cc/%.ll
+.PRECIOUS: dist/3cc/%.ll

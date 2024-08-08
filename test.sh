@@ -1,7 +1,7 @@
 #!/bin/bash
 
 flag_show_ok_result=false
-compiler="./dist/1cc"
+compiler="./dist/1cc/compiler"
 
 # 引数を解析
 while [[ $# -gt 0 ]]; do
@@ -10,8 +10,9 @@ while [[ $# -gt 0 ]]; do
     flag_show_ok_result=true
     shift
     ;;
-  --self)
-    compiler="./dist/compiler/1cc"
+  --compiler)
+    compiler="$2"
+    shift
     shift
     ;;
   *)

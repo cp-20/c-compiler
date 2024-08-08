@@ -549,11 +549,15 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_CALL] " COL_RESET
                              "node->call->args[%d] = %d",
                     i, arg->kind);
+        // 引数が数値の場合はスキップ (最適化)
+        if (arg->kind == ND_NUM) continue;
         merge_code(code, generate_node(arg, stack, locals_r, rctx));
       }
       Variable** args = calloc(node->call->args->size, sizeof(Variable));
       for (int i = 0; i < node->call->args->size; i++) {
         int j = node->call->args->size - i - 1;
+        Node* arg_node = vec_at(node->call->args, j);
+        if (arg_node->kind == ND_NUM) continue;
         Variable* arg = pop_variable(stack);
         char* arg_type = get_variable_type_str(arg);
         char* arg_ptype = get_ptr_variable_type_str(arg);
@@ -594,8 +598,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       }
       for (int i = 0; i < node->call->args->size; i++) {
         if (i > 0) push_code(code, ", ");
-        push_code(code, "%s noundef %%%d", get_variable_type_str(args[i]),
-                  args[i]->reg);
+        Node* arg = vec_at(node->call->args, i);
+        if (arg->kind == ND_NUM) {
+          push_code(code, "i32 noundef %d", arg->val);
+        } else {
+          push_code(code, "%s noundef %%%d", get_variable_type_str(args[i]),
+                    args[i]->reg);
+        }
       }
       push_code(code, ")\n");
 

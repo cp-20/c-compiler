@@ -114,9 +114,13 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       int r_num = r_register(rctx);
       push_code(code, "  %%%d = alloca i32, align 4\n", r_num);
 
-      // (void*)0 は null として扱う
-      if (node->cast != NULL && node->cast->type == TYPE_PTR &&
-          node->cast->ptr_to->type == TYPE_VOID && node->val == 0) {
+      print_debug("node = %p", node);
+
+      // (void*)0 は null として扱う (短絡評価がないので冗長になっている)
+      bool is_null = node->cast != NULL && node->val == 0;
+      if (is_null) is_null = node->cast->type == TYPE_PTR;
+      if (is_null) is_null = node->cast->ptr_to->type == TYPE_VOID;
+      if (is_null) {
         push_code(code, "  store ptr null, ptr %%%d, align 4\n", r_num);
       } else {
         push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val,

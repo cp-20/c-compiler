@@ -236,7 +236,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
                   r_right_i32_val, r_right_i32);
         free_variable(rhs);
         rhs = new_variable(r_right_i32, TYPE_I32, NULL, 0);
-        break;
       }
 
       if (!is_same_type(lvar, rhs)) {

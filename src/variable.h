@@ -2,12 +2,14 @@
 
 #include <stdbool.h>
 
+#include "code.h"
 #include "node-kind.h"
 #include "variable.h"
 #include "vector.h"
 
 typedef enum {
   TYPE_VOID,
+  TYPE_I1,
   TYPE_I8,
   TYPE_I32,
   TYPE_PTR,
@@ -50,6 +52,9 @@ void push_variable(vector* stack, Variable* var);
 Variable* pop_variable(vector* stack);
 
 Variable* get_last_variable(vector* stack);
+
+char* get_variable_value_str(Variable* var, Code* code, int* rctx,
+                             bool is_lval);
 
 char* get_variable_type_str(Variable* var);
 

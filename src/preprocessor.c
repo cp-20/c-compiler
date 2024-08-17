@@ -140,11 +140,14 @@ char* process_define(char* input) {
     if (strncmp(r, name, len) == 0) {
       strncat(new_output, rest, r - rest);
       strcat(new_output, body);
+      print_debug(COL_BLUE "[preprocessor] " COL_GREEN "[#define] " COL_RESET
+                           "new_output");
       r += len;
       rest = r;
     }
     r++;
   }
+  print_debug("loop end");
   strcat(new_output, rest);
   char* new_output_result = calloc(strlen(new_output) + 1, 1);
   strcat(new_output_result, new_output);

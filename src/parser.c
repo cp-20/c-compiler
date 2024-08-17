@@ -128,7 +128,7 @@ void setup_program() {
   var_stderr->var->name = calloc(7, sizeof(char));
   sprintf(var_stderr->var->name, "stderr");
   var_stderr->var->len = 6;
-  var_stderr->var->reg = -2;
+  var_stderr->var->reg = -6;
   vec_push_last(global_globals, var_stderr);
 
   // va_list
@@ -258,7 +258,7 @@ Function *global_decl(Token **token) {
       lvar->var->name = calloc(tok->len + 1, sizeof(char));
       memcpy(lvar->var->name, tok->str, tok->len);
       lvar->var->len = tok->len;
-      lvar->var->reg = -2;
+      lvar->var->reg = -6;
       vec_push_last(global_globals, lvar);
     }
     expect(token, ";");
@@ -398,10 +398,10 @@ Function *global_decl(Token **token) {
     if (consume(token, ";")) {
       LVar *lvar = find_lvar_from_vector(tok, global_globals);
       if (lvar != NULL) {
-        if (lvar->var->reg != -2) {
+        if (lvar->var->reg != -6) {
           error_at(tok->str, "変数が二重定義されています");
         } else {
-          lvar->var->reg = -1;
+          lvar->var->reg = -5;
           return NULL;
         }
       }
@@ -414,7 +414,7 @@ Function *global_decl(Token **token) {
       lvar->var->name = calloc(tok->len + 1, sizeof(char));
       memcpy(lvar->var->name, tok->str, tok->len);
       lvar->var->len = tok->len;
-      lvar->var->reg = -1;
+      lvar->var->reg = -5;
       vec_push_last(global_globals, lvar);
       return NULL;
     }

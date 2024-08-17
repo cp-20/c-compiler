@@ -31,7 +31,7 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
   }
 
   if (node->kind == ND_DEREF) {
-    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx, true));
     Variable* lvar_val = pop_variable(stack);
     if (!is_pointer_like(lvar_val)) {
       error("間接参照演算子の右辺値がポインタではありません");
@@ -49,7 +49,7 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
   }
 
   if (node->kind == ND_ACCESS) {
-    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+    merge_code(code, generate_node(node->lhs, stack, locals_r, rctx, true));
     Variable* lvar_val = pop_variable(stack);
     char* type = get_variable_type_str(lvar_val);
     char* ptype = get_ptr_variable_type_str(lvar_val);
@@ -65,14 +65,50 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
     return field_var;
   }
 
-  error("代入の左辺値が変数ではありません");
+  error("代入の左辺値が変数ではありません (kind = %s)",
+        get_node_kind_name(node->kind));
   return NULL;
+}
+
+int eval_cond(Code* code, Node* node, vector* stack, Variable** locals_r,
+              int* rctx) {
+  bool is_boolean = node->kind == ND_EQ || node->kind == ND_NE ||
+                    node->kind == ND_LT || node->kind == ND_LE ||
+                    node->kind == ND_GT || node->kind == ND_GE ||
+                    node->kind == ND_AND || node->kind == ND_OR;
+  if (is_boolean) {
+    node->cast = new_variable(-10, TYPE_I1, NULL, 0);
+  }
+  merge_code(code, generate_node(node, stack, locals_r, rctx, false));
+
+  Variable* cond = pop_variable(stack);
+  char* cond_type = get_variable_type_str(cond);
+  int r_cond;
+  if (is_boolean) {
+    r_cond = cond->reg;
+  } else {
+    char* cond_val = get_variable_value_str(cond, code, rctx, false);
+    r_cond = r_register(rctx);
+    push_code(code, "  %%%d = icmp ne %s %s, %s\n", r_cond, cond_type, cond_val,
+              cond->type == TYPE_PTR ? "null" : "0");
+    free(cond_val);
+  }
+
+  free_variable(cond);
+  free(cond_type);
+
+  return r_cond;
 }
 
 void push_variable_with_cast_if_needed(vector* stack, Variable* var,
                                        Variable* cast) {
   if (cast != NULL) {
-    push_variable(stack, with_reg(cast, var->reg));
+    Variable* new_var = with_reg(cast, var->reg);
+    if (var->value != NULL) {
+      new_var->value = malloc(sizeof(int));
+      *new_var->value = *var->value;
+    }
+    push_variable(stack, new_var);
     // 怪しい
     free_variable(var);
   } else {
@@ -80,7 +116,8 @@ void push_variable_with_cast_if_needed(vector* stack, Variable* var,
   }
 }
 
-Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
+Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx,
+                    bool is_lval) {
   print_debug(COL_BLUE "[generator]" COL_CYAN " [generate_node]" COL_RESET
                        " %s",
               get_node_kind_name(node->kind));
@@ -111,31 +148,21 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
 
   switch (node->kind) {
     case ND_NUM: {
-      int r_num = r_register(rctx);
-
-      // (void*)0 は null として扱う (短絡評価がないので冗長になっている)
       bool is_null = node->cast != NULL && node->val == 0;
       if (is_null) is_null = node->cast->type == TYPE_PTR;
       if (is_null) is_null = node->cast->ptr_to->type == TYPE_VOID;
-      if (is_null) {
-        push_code(code, "  %%%d = alloca ptr, align 8\n", r_num);
-        push_code(code, "  store ptr null, ptr %%%d, align 8\n", r_num);
-      } else {
-        push_code(code, "  %%%d = alloca i32, align 4\n", r_num);
-        push_code(code, "  store i32 %d, i32* %%%d, align 4\n", node->val,
-                  r_num);
-      }
-      Variable* var = new_variable(r_num, TYPE_I32, NULL, 0);
+
+      Variable* var = new_variable(is_null ? -3 : -2, TYPE_I32, NULL, 0);
+      var->value = malloc(sizeof(int));
+      *var->value = node->val;
       push_variable_with_cast_if_needed(stack, var, node->cast);
       break;
     }
     case ND_STRING: {
-      int r_string = r_register(rctx);
-      push_code(code, "  %%%d = alloca i8*, align 8\n", r_string);
-      push_code(code, "  store i8* @.str.%d, i8** %%%d, align 8\n",
-                node->offset, r_string);
-      Variable* var = new_variable(r_string, TYPE_PTR,
-                                   new_variable(-1, TYPE_I8, NULL, 0), 0);
+      Variable* var =
+          new_variable(-4, TYPE_PTR, new_variable(-1, TYPE_I8, NULL, 0), 0);
+      var->value = malloc(sizeof(int));
+      *var->value = node->offset;
       push_variable_with_cast_if_needed(stack, var, node->cast);
       break;
     }
@@ -145,69 +172,53 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         r_register(rctx);
         break;
       }
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+      merge_code(code,
+                 generate_node(node->lhs, stack, locals_r, rctx, is_lval));
       Variable* val = pop_variable(stack);
       char* val_type = get_variable_type_str(val);
-      char* val_ptype = get_ptr_variable_type_str(val);
-      int val_size = get_variable_size(val);
-      int r_result_val = r_register(rctx);
-      if (val->reg >= 0) {
-        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_result_val,
-                  val_type, val_ptype, val->reg, val_size);
-      } else {
-        push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_result_val,
-                  val_type, val_ptype, val->len, val->name, val_size);
-      }
+      char* result_val = get_variable_value_str(val, code, rctx, is_lval);
       if (return_type->type == TYPE_I32 && val->type == TYPE_I8) {
         int r_right_i32_val = r_register(rctx);
-        push_code(code, "  %%%d = zext i8 %%%d to i32\n", r_right_i32_val,
-                  r_result_val);
-        r_result_val = r_right_i32_val;
+        push_code(code, "  %%%d = zext i8 %s to i32\n", r_right_i32_val,
+                  result_val);
+        free(result_val);
+        result_val = get_variable_value_str(with_reg(val, r_right_i32_val),
+                                            code, rctx, is_lval);
         free(val_type);
         val_type = calloc(4, sizeof(char));
         sprintf(val_type, "i32");
       }
-      push_code(code, "  ret %s %%%d\n", val_type, r_result_val);
+      push_code(code, "  ret %s %s\n", val_type, result_val);
       // なぜかよくわからないけどレジスタを1個空けると上手く行く
       r_register(rctx);
       free_variable(val);
       free(val_type);
-      free(val_ptype);
       break;
     }
     case ND_LVAR: {
       Variable* var = get_variable(locals_r, node->offset);
-      char* var_type = get_variable_type_str(var);
-      char* var_ptype = get_ptr_variable_type_str(var);
-      Variable* pvar = new_variable(-1, TYPE_PTR, copy_var(var), 0);
-      char* var_pptype = get_ptr_variable_type_str(pvar);
       if (var->value != NULL) {
         // enum の場合は数値に置き換える
         merge_code(code, generate_node(new_node_num(*var->value), stack,
-                                       locals_r, rctx));
+                                       locals_r, rctx, is_lval));
       } else if (var->type == TYPE_ARRAY) {
         // 配列の場合はポインタを返す
         int r_var = r_register(rctx);
+        char* var_type = get_variable_type_str(var);
         push_code(
             code,
             "  %%%d = getelementptr inbounds %s, ptr %%%d, i64 0, i64 0\n",
             r_var, var_type, var->reg);
-        int r_var_ptr = r_register(rctx);
-        push_code(code, "  %%%d = alloca %s, align 8\n", r_var_ptr, var_ptype);
-        push_code(code, "  store %s %%%d, %s %%%d, align 8\n", var_ptype, r_var,
-                  var_pptype, r_var_ptr);
-        push_variable_with_cast_if_needed(
-            stack, new_variable(r_var_ptr, TYPE_PTR, var->ptr_to, 0),
-            node->cast);
+        Variable* var_ptr = new_variable(r_var, TYPE_PTR, var->ptr_to, 0);
+        push_variable_with_cast_if_needed(stack, var_ptr, node->cast);
+        free(var_type);
       } else {
-        // それ以外の場合はそのまま返す
-        push_variable_with_cast_if_needed(stack, var, node->cast);
+        Variable* var_copy = copy_var(var);
+        var_copy->value = malloc(sizeof(int));
+        *var_copy->value = -1;
+        push_variable_with_cast_if_needed(stack, var_copy, node->cast);
       }
 
-      free(var_type);
-      free(var_ptype);
-      free(var_pptype);
-      free_variable(pvar);
       break;
     }
     case ND_ASSIGN: {
@@ -216,26 +227,18 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         free(node->rhs->call->ret);
         node->rhs->call->ret = copy_var_if_needed(lvar);
       }
-      merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
+      merge_code(code,
+                 generate_node(node->rhs, stack, locals_r, rctx, is_lval));
       Variable* rhs = pop_variable(stack);
+      print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_ASSIGN] " COL_RESET
+                           "rhs->value = %p",
+                  rhs->value);
       if (lvar->type == TYPE_I32 && rhs->type == TYPE_I8) {
-        int r_right_val = r_register(rctx);
-        if (rhs->reg >= 0) {
-          push_code(code, "  %%%d = load i8, i8* %%%d, align 1\n", r_right_val,
-                    rhs->reg);
-        } else {
-          push_code(code, "  %%%d = load i8, i8* @%.*s, align 1\n", r_right_val,
-                    rhs->len, rhs->name);
-        }
         int r_right_i32_val = r_register(rctx);
         push_code(code, "  %%%d = zext i8 %%%d to i32\n", r_right_i32_val,
-                  r_right_val);
-        int r_right_i32 = r_register(rctx);
-        push_code(code, "  %%%d = alloca i32, align 4\n", r_right_i32);
-        push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n",
-                  r_right_i32_val, r_right_i32);
+                  rhs->reg);
         free_variable(rhs);
-        rhs = new_variable(r_right_i32, TYPE_I32, NULL, 0);
+        rhs = new_variable(r_right_i32_val, TYPE_I32, NULL, 0);
       }
 
       if (!is_same_type(lvar, rhs)) {
@@ -245,53 +248,35 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       char* type = get_variable_type_str(rhs);
       char* ptype = get_ptr_variable_type_str(rhs);
       int size = get_variable_size(rhs);
-      int r_right_val = r_register(rctx);
-      if (rhs->reg >= 0) {
-        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val,
-                  type, ptype, rhs->reg, size);
-      } else {
-        push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_right_val,
-                  type, ptype, rhs->len, rhs->name, size);
-      }
+      char* rval = get_variable_value_str(rhs, code, rctx, is_lval);
       if (node->lhs->offset >= 0) {
-        push_code(code, "  store %s %%%d, %s %%%d, align %d\n", type,
-                  r_right_val, ptype, lvar->reg, size);
+        push_code(code, "  store %s %s, %s %%%d, align %d\n", type, rval, ptype,
+                  lvar->reg, size);
       } else {
-        push_code(code, "  store %s %%%d, %s @%.*s, align %d\n", type,
-                  r_right_val, ptype, lvar->len, lvar->name, size);
+        push_code(code, "  store %s %s, %s @%.*s, align %d\n", type, rval,
+                  ptype, lvar->len, lvar->name, size);
       }
-      push_variable_with_cast_if_needed(stack, with_reg(lvar, lvar->reg),
+      if (rhs->value != NULL) {
+        lvar->value = malloc(sizeof(int));
+        *lvar->value = *rhs->value;
+      }
+      push_variable_with_cast_if_needed(stack, with_reg(lvar, rhs->reg),
                                         node->cast);
       free_variable(rhs);
       free(type);
       free(ptype);
+      free(rval);
       break;
     }
     case ND_IF: {
-      // 条件式を計算する
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-
-      Variable* cond = pop_variable(stack);
-      char* cond_type = get_variable_type_str(cond);
-      char* cond_ptype = get_ptr_variable_type_str(cond);
-      int cond_size = get_variable_size(cond);
-      int r_cond_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
-                cond_type, cond_ptype, cond->reg, cond_size);
-      int r_cond_bool = r_register(rctx);
-      if (cond->type == TYPE_PTR) {
-        push_code(code, "  %%%d = icmp ne %s %%%d, null\n", r_cond_bool,
-                  cond_type, r_cond_val);
-      } else {
-        push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
-                  r_cond_val);
-      }
+      int r_cond_bool = eval_cond(code, node->lhs, stack, locals_r, rctx);
 
       int r_then_label = r_register(rctx);
 
       Code* block = init_code();
       push_code(block, "%d:\n", r_then_label);
-      merge_code(block, generate_node(node->rhs, stack, locals_r, rctx));
+      merge_code(block,
+                 generate_node(node->rhs, stack, locals_r, rctx, is_lval));
 
       int r_next_label = r_register(rctx);
 
@@ -299,7 +284,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
         Code* sub_block = init_code();
         push_code(sub_block, "%d:\n", r_next_label);
         merge_code(sub_block,
-                   generate_node(node->extra, stack, locals_r, rctx));
+                   generate_node(node->extra, stack, locals_r, rctx, is_lval));
         int r_final_label = r_register(rctx);
         push_code(sub_block, "  br label %%%d\n", r_final_label);
         push_code(block, "  br label %%%d\n", r_final_label);
@@ -314,9 +299,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
                 r_then_label, r_next_label);
       merge_code(code, block);
-      free_variable(cond);
-      free(cond_type);
-      free(cond_ptype);
       break;
     }
     case ND_WHILE: {
@@ -337,18 +319,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(code, "%d:\n", r_start_label);
 
       // 条件式を計算する
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-      Variable* cond = pop_variable(stack);
-      char* cond_type = get_variable_type_str(cond);
-      char* cond_ptype = get_ptr_variable_type_str(cond);
-      int cond_size = get_variable_size(cond);
-      int r_cond_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
-                cond_type, cond_ptype, cond->reg, cond_size);
-
-      int r_cond_bool = r_register(rctx);
-      push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
-                r_cond_val);
+      int r_cond_bool = eval_cond(code, node->lhs, stack, locals_r, rctx);
 
       Code* break_block = init_code();
       int r_break_label = r_register(rctx);
@@ -361,7 +332,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
 
       int r_next_label = r_register(rctx);
       push_code(block, "%d:\n", r_next_label);
-      merge_code(block, generate_node(node->rhs, stack, locals_r, rctx));
+      merge_code(block,
+                 generate_node(node->rhs, stack, locals_r, rctx, is_lval));
       push_code(block, "  br label %%%d\n", r_start_label);
 
       int r_end_label = r_register(rctx);
@@ -375,9 +347,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       vec_pop(break_labels);
       free(r_continue_label_ptr);
       free(r_break_label_ptr);
-      free_variable(cond);
-      free(cond_type);
-      free(cond_ptype);
       break;
     }
     case ND_DO: {
@@ -405,18 +374,9 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
 
       Code* block = init_code();
       push_code(block, "%d:\n", r_start_label);
-      merge_code(block, generate_node(node->lhs, stack, locals_r, rctx));
-      merge_code(block, generate_node(node->rhs, stack, locals_r, rctx));
-      Variable* cond = pop_variable(stack);
-      char* cond_type = get_variable_type_str(cond);
-      char* cond_ptype = get_ptr_variable_type_str(cond);
-      int cond_size = get_variable_size(cond);
-      int r_cond_val = r_register(rctx);
-      push_code(block, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
-                cond_type, cond_ptype, cond->reg, cond_size);
-      int r_cond_bool = r_register(rctx);
-      push_code(block, "  %%%d = icmp ne %s %%%d, %s\n", r_cond_bool, cond_type,
-                r_cond_val, cond->type == TYPE_PTR ? "null" : "0");
+      merge_code(block,
+                 generate_node(node->lhs, stack, locals_r, rctx, is_lval));
+      int r_cond_bool = eval_cond(block, node->rhs, stack, locals_r, rctx);
       int r_end_label = r_register(rctx);
       push_code(block, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
                 r_start_label, r_end_label);
@@ -429,9 +389,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       vec_pop(break_labels);
       free(r_continue_label_ptr);
       free(r_break_label_ptr);
-      free_variable(cond);
-      free(cond_type);
-      free(cond_ptype);
       break;
     }
     case ND_FOR: {
@@ -453,7 +410,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
 
       // 初期化式
       if (node->lhs != NULL) {
-        merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+        merge_code(code,
+                   generate_node(node->lhs, stack, locals_r, rctx, is_lval));
       }
 
       int r_start_label = r_register(rctx);
@@ -463,21 +421,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       // 条件式を計算する
       int r_cond_bool;
       if (node->rhs != NULL) {
-        merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
-        Variable* cond = pop_variable(stack);
-        char* cond_type = get_variable_type_str(cond);
-        char* cond_ptype = get_ptr_variable_type_str(cond);
-        int cond_size = get_variable_size(cond);
-        int r_cond_val = r_register(rctx);
-        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
-                  cond_type, cond_ptype, cond->reg, cond_size);
-
-        r_cond_bool = r_register(rctx);
-        push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
-                  r_cond_val);
-        free_variable(cond);
-        free(cond_type);
-        free(cond_ptype);
+        r_cond_bool = eval_cond(code, node->rhs, stack, locals_r, rctx);
       } else {
         r_cond_bool = r_register(rctx);
         push_code(code, "  %%%d = icmp ne i32 1, 0\n", r_cond_bool);
@@ -501,13 +445,15 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
 
       int r_next_label = r_register(rctx);
       push_code(block, "%d:\n", r_next_label);
-      merge_code(block, generate_node(node->extra2, stack, locals_r, rctx));
+      merge_code(block,
+                 generate_node(node->extra2, stack, locals_r, rctx, is_lval));
       int r_continue_dist_label = r_register(rctx);
       push_code(continue_block, "  br label %%%d\n", r_continue_dist_label);
       push_code(block, "  br label %%%d\n", r_continue_dist_label);
       push_code(block, "%d:\n", r_continue_dist_label);
       if (node->extra != NULL) {
-        merge_code(block, generate_node(node->extra, stack, locals_r, rctx));
+        merge_code(block,
+                   generate_node(node->extra, stack, locals_r, rctx, is_lval));
       }
       push_code(block, "  br label %%%d\n", r_start_label);
 
@@ -533,7 +479,7 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       // ブロックの場合は各文を順に生成する
       for (int i = 0; i < node->stmts->size; i++) {
         Node* stmt = vec_at(node->stmts, i);
-        merge_code(code, generate_node(stmt, stack, locals_r, rctx));
+        merge_code(code, generate_node(stmt, stack, locals_r, rctx, is_lval));
       }
       break;
     }
@@ -542,36 +488,16 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_CALL] " COL_RESET
                            "node->call->args->size = %d",
                   node->call->args->size);
+      Variable** args = calloc(node->call->args->size, sizeof(Variable));
+      char** arg_vals = calloc(node->call->args->size, sizeof(char*));
       for (int i = 0; i < node->call->args->size; i++) {
         Node* arg = vec_at(node->call->args, i);
         print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_CALL] " COL_RESET
                              "node->call->args[%d] = %d",
                     i, arg->kind);
-        // 引数が数値の場合はスキップ (最適化)
-        if (arg->kind == ND_NUM) continue;
-        merge_code(code, generate_node(arg, stack, locals_r, rctx));
-      }
-      Variable** args = calloc(node->call->args->size, sizeof(Variable));
-      for (int i = 0; i < node->call->args->size; i++) {
-        int j = node->call->args->size - i - 1;
-        Node* arg_node = vec_at(node->call->args, j);
-        if (arg_node->kind == ND_NUM) continue;
-        Variable* arg = pop_variable(stack);
-        char* arg_type = get_variable_type_str(arg);
-        char* arg_ptype = get_ptr_variable_type_str(arg);
-        int arg_size = get_variable_size(arg);
-        int r_arg_val = r_register(rctx);
-        if (arg->reg >= 0) {
-          push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_arg_val,
-                    arg_type, arg_ptype, arg->reg, arg_size);
-        } else {
-          push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_arg_val,
-                    arg_type, arg_ptype, arg->len, arg->name, arg_size);
-        }
-        args[j] = with_reg(arg, r_arg_val);
-        free_variable(arg);
-        free(arg_type);
-        free(arg_ptype);
+        merge_code(code, generate_node(arg, stack, locals_r, rctx, is_lval));
+        args[i] = pop_variable(stack);
+        arg_vals[i] = get_variable_value_str(args[i], code, rctx, is_lval);
       }
 
       // 関数呼び出し本体
@@ -596,24 +522,16 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       }
       for (int i = 0; i < node->call->args->size; i++) {
         if (i > 0) push_code(code, ", ");
-        Node* arg = vec_at(node->call->args, i);
-        if (arg->kind == ND_NUM) {
-          push_code(code, "i32 noundef %d", arg->val);
-        } else {
-          push_code(code, "%s noundef %%%d", get_variable_type_str(args[i]),
-                    args[i]->reg);
-        }
+        char* arg_type = get_variable_type_str(args[i]);
+        char* arg_val = arg_vals[i];
+        push_code(code, "%s noundef %s", arg_type, arg_val);
       }
       push_code(code, ")\n");
 
       // 結果をスタックに積む
       if (node->call->ret->type != TYPE_VOID) {
-        int r_result = r_register(rctx);
-        push_code(code, "  %%%d = alloca %s, align 4\n", r_result, return_type);
-        push_code(code, "  store %s %%%d, %s %%%d, align 4\n", return_type,
-                  r_result_val, return_ptype, r_result);
         push_variable_with_cast_if_needed(
-            stack, with_reg(node->call->ret, r_result), node->cast);
+            stack, with_reg(node->call->ret, r_result_val), node->cast);
       }
 
       for (int i = 0; i < node->call->args->size; i++) {
@@ -626,77 +544,63 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
     }
     case ND_INCR:
     case ND_DECR: {
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+      merge_code(code,
+                 generate_node(node->lhs, stack, locals_r, rctx, is_lval));
       Variable* var = pop_variable(stack);
+      free(var->value);
+      var->value = NULL;
       char* var_type = get_variable_type_str(var);
       char* var_ptype = get_ptr_variable_type_str(var);
       int var_size = get_variable_size(var);
-      int r_result = r_register(rctx);
-      push_code(code, "  %%%d = alloca %s, align %d\n", r_result, var_type,
-                var_size);
-      int r_val = r_register(rctx);
-      if (var->reg >= 0) {
-        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_val,
-                  var_type, var_ptype, var->reg, var_size);
-      } else {
-        push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_val,
-                  var_type, var_ptype, var->len, var->name, var_size);
-      }
-      push_code(code, "  store %s %%%d, %s %%%d, align %d\n", var_type, r_val,
-                var_ptype, r_result, var_size);
-      push_variable_with_cast_if_needed(stack, with_reg(var, r_result),
+      int r_var_val = r_register(rctx);
+      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_var_val,
+                var_type, var_ptype, var->reg, var_size);
+      push_variable_with_cast_if_needed(stack, with_reg(var, r_var_val),
                                         node->cast);
-
       NodeKind op_type = node->kind == ND_INCR ? ND_ADD : ND_SUB;
       Node* op_node = new_node(ND_ASSIGN, node->lhs,
                                new_node(op_type, node->lhs, new_node_num(1)));
-      merge_code(code, generate_node(op_node, stack, locals_r, rctx));
+      merge_code(code, generate_node(op_node, stack, locals_r, rctx, is_lval));
       free_variable(pop_variable(stack));
-      free_variable(var);
-      free(var_type);
-      free(var_ptype);
       break;
     }
     case ND_REF: {
       Variable* lvar = gen_lval(code, node->lhs, stack, locals_r, rctx);
-      int r_result = r_register(rctx);
-      Variable* lvar_ptr =
-          new_variable(r_result, TYPE_PTR, copy_var_if_needed(lvar), -1);
-      char* lvar_ptr_type = get_variable_type_str(lvar_ptr);
-      char* lvar_ptr_ptype = get_ptr_variable_type_str(lvar_ptr);
-      push_code(code, "  %%%d = alloca %s, align 8\n", r_result, lvar_ptr_type);
-      push_code(code, "  store %s %%%d, %s %%%d, align 8\n", lvar_ptr_type,
-                lvar->reg, lvar_ptr_ptype, r_result);
-      push_variable_with_cast_if_needed(stack, lvar_ptr, node->cast);
-      free(lvar_ptr_type);
-      free(lvar_ptr_ptype);
+      Variable* lvar_type = new_variable(-5, TYPE_PTR, lvar, 0);
+      lvar_type->reg = lvar->reg;
+      if (lvar->value != NULL) {
+        lvar_type->value = malloc(sizeof(int));
+        *lvar_type->value = *lvar->value;
+      }
+      push_variable_with_cast_if_needed(stack, lvar_type, node->cast);
       break;
     }
     case ND_DEREF: {
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-      Variable* rhs = pop_variable(stack);
-      if (!is_pointer_like(rhs)) {
+      merge_code(code,
+                 generate_node(node->lhs, stack, locals_r, rctx, is_lval));
+      Variable* val_ptr = pop_variable(stack);
+      if (!is_pointer_like(val_ptr)) {
         error("間接参照演算子の右辺値がポインタではありません");
       }
-      char* rhs_type = get_variable_type_str(rhs);
-      char* rhs_ptype = get_ptr_variable_type_str(rhs);
-      int r_ptr_val = r_register(rctx);
-      if (rhs->reg >= 0) {
-        push_code(code, "  %%%d = load %s, %s %%%d, align 8\n", r_ptr_val,
-                  rhs_type, rhs_ptype, rhs->reg);
-      } else {
-        push_code(code, "  %%%d = load %s, %s @%.*s, align 8\n", r_ptr_val,
-                  rhs_type, rhs_ptype, rhs->len, rhs->name);
-      }
-      push_variable_with_cast_if_needed(stack, with_reg(rhs->ptr_to, r_ptr_val),
-                                        node->cast);
-      free_variable(rhs);
-      free(rhs_type);
-      free(rhs_ptype);
+      Variable* val = val_ptr->ptr_to;
+      bool is_struct = val->type == TYPE_STRUCT;
+      char* type = get_variable_type_str(is_struct ? val_ptr : val);
+      char* ptype = get_ptr_variable_type_str(is_struct ? val_ptr : val);
+      char* val_ptr_val =
+          get_variable_value_str(val_ptr, code, rctx, is_struct || is_lval);
+      int size = get_variable_size(is_struct ? val_ptr : val);
+      int r_val = r_register(rctx);
+      val = with_reg(val, r_val);
+      push_code(code, "  %%%d = load %s, %s %s, align %d\n", r_val, type, ptype,
+                val_ptr_val, size);
+      push_variable_with_cast_if_needed(stack, val, node->cast);
+      free(type);
+      free(ptype);
       break;
     }
     case ND_ACCESS: {
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+      merge_code(code,
+                 generate_node(node->lhs, stack, locals_r, rctx, is_lval));
       Variable* lvar = pop_variable(stack);
       char* type = get_variable_type_str(lvar);
       char* ptype = get_ptr_variable_type_str(lvar);
@@ -706,6 +610,19 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
                 r_field, type, ptype, lvar->reg, node->rhs->val);
       LVar* field = vec_at(lvar->fields, node->rhs->val);
       Variable* field_var = with_reg(field->var, r_field);
+      if (!is_lval) {
+        int r_field_val = r_register(rctx);
+        char* field_type = get_variable_type_str(field_var);
+        char* field_ptype = get_ptr_variable_type_str(field_var);
+        int field_size = get_variable_size(field_var);
+        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_field_val,
+                  field_type, field_ptype, r_field, field_size);
+        Variable* new_field_var = with_reg(field_var, r_field_val);
+        free_variable(field_var);
+        field_var = new_field_var;
+        free(field_type);
+        free(field_ptype);
+      }
       push_variable_with_cast_if_needed(stack, field_var, node->cast);
       free_variable(lvar);
       free(type);
@@ -713,21 +630,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       break;
     }
     case ND_TERNARY: {
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-
-      Variable* cond = pop_variable(stack);
-      char* cond_type = get_variable_type_str(cond);
-      char* cond_ptype = get_ptr_variable_type_str(cond);
-      int cond_size = get_variable_size(cond);
-      int r_cond_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
-                cond_type, cond_ptype, cond->reg, cond_size);
-      int r_cond_bool = r_register(rctx);
-      push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_cond_bool, cond_type,
-                r_cond_val);
+      int r_cond_bool = eval_cond(code, node->lhs, stack, locals_r, rctx);
 
       int r_result = r_register(rctx);
       char* result_type = get_variable_type_str(node->cast);
+      char* result_ptype = get_ptr_variable_type_str(node->cast);
       int result_size = get_variable_size(node->cast);
       push_code(code, "  %%%d = alloca %s, align %d\n", r_result, result_type,
                 result_size);
@@ -737,33 +644,30 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(block, "%d:\n", r_then_label);
       print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_TERNARY] " COL_RESET
                            "generate ternary 1");
-      merge_code(block, generate_node(node->rhs->lhs, stack, locals_r, rctx));
+      merge_code(block,
+                 generate_node(node->rhs->lhs, stack, locals_r, rctx, is_lval));
       print_debug(COL_BLUE "[generator] " COL_GREEN "[ND_TERNARY] " COL_RESET
                            "generate ternary 2");
       Variable* lhs_result = pop_variable(stack);
       char* lhs_type = get_variable_type_str(lhs_result);
       char* lhs_ptype = get_ptr_variable_type_str(lhs_result);
+      char* lhs_val = get_variable_value_str(lhs_result, code, rctx, is_lval);
       int lhs_size = get_variable_size(lhs_result);
-      int lhs_val = r_register(rctx);
-      push_code(block, "  %%%d = load %s, %s %%%d, align %d\n", lhs_val,
-                lhs_type, lhs_ptype, lhs_result->reg, lhs_size);
-      push_code(block, "  store %s %%%d, %s %%%d, align %d\n", lhs_type,
-                lhs_val, lhs_ptype, r_result, lhs_size);
+      push_code(block, "  store %s %s, %s %%%d, align %d\n", lhs_type, lhs_val,
+                lhs_ptype, r_result, lhs_size);
 
       int r_next_label = r_register(rctx);
 
       Code* sub_block = init_code();
       push_code(sub_block, "%d:\n", r_next_label);
       merge_code(sub_block,
-                 generate_node(node->rhs->rhs, stack, locals_r, rctx));
+                 generate_node(node->rhs->rhs, stack, locals_r, rctx, is_lval));
       Variable* rhs_result = pop_variable(stack);
       char* rhs_type = get_variable_type_str(rhs_result);
       char* rhs_ptype = get_ptr_variable_type_str(rhs_result);
+      char* rhs_val = get_variable_value_str(rhs_result, code, rctx, is_lval);
       int rhs_size = get_variable_size(rhs_result);
-      int rhs_val = r_register(rctx);
-      push_code(sub_block, "  %%%d = load %s, %s %%%d, align %d\n", rhs_val,
-                rhs_type, rhs_ptype, rhs_result->reg, rhs_size);
-      push_code(sub_block, "  store %s %%%d, %s %%%d, align %d\n", rhs_type,
+      push_code(sub_block, "  store %s %s, %s %%%d, align %d\n", rhs_type,
                 rhs_val, rhs_ptype, r_result, rhs_size);
       int r_final_label = r_register(rctx);
       push_code(sub_block, "  br label %%%d\n", r_final_label);
@@ -775,11 +679,12 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       push_code(code, "  br i1 %%%d, label %%%d, label %%%d\n", r_cond_bool,
                 r_then_label, r_next_label);
       merge_code(code, block);
-      push_variable(stack, with_reg(node->cast, r_result));
-      free_variable(cond);
-      free(cond_type);
-      free(cond_ptype);
+      int r_result_val = r_register(rctx);
+      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_result_val,
+                result_type, result_ptype, r_result, result_size);
+      push_variable(stack, with_reg(node->cast, r_result_val));
       free(result_type);
+      free(result_ptype);
       free(lhs_type);
       free(lhs_ptype);
       free(rhs_type);
@@ -806,14 +711,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
     }
     case ND_SWITCH: {
       // switch文の条件となる値
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
+      merge_code(code,
+                 generate_node(node->lhs, stack, locals_r, rctx, is_lval));
       Variable* value = pop_variable(stack);
       char* value_type = get_variable_type_str(value);
-      char* value_ptype = get_ptr_variable_type_str(value);
-      int cond_size = get_variable_size(value);
-      int r_cond_val = r_register(rctx);
-      push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_cond_val,
-                value_type, value_ptype, value->reg, cond_size);
+      char* value_val = get_variable_value_str(value, code, rctx, is_lval);
 
       // breakのラベル
       Code* break_block = init_code();
@@ -831,8 +733,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       for (int i = 0; i < node->stmts->size; i++) {
         case_labels[i] = r_next_case_label;
         Node* case_node = vec_at(node->stmts, i);
-        merge_code(switch_cases,
-                   generate_node(case_node->rhs, stack, locals_r, rctx));
+        merge_code(switch_cases, generate_node(case_node->rhs, stack, locals_r,
+                                               rctx, is_lval));
         r_next_case_label = r_register(rctx);
         push_code(switch_cases, "  br label %%%d\n", r_next_case_label);
         push_code(switch_cases, "%d:\n", r_next_case_label);
@@ -841,15 +743,15 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       // defaultの文
       int default_label = r_next_case_label;
       if (node->rhs != NULL) {
-        merge_code(switch_cases,
-                   generate_node(node->rhs->rhs, stack, locals_r, rctx));
+        merge_code(switch_cases, generate_node(node->rhs->rhs, stack, locals_r,
+                                               rctx, is_lval));
         r_next_case_label = r_register(rctx);
         push_code(switch_cases, "  br label %%%d\n", r_next_case_label);
         push_code(switch_cases, "%d:\n", r_next_case_label);
       }
 
-      push_code(code, "  switch %s %%%d, label %%%d [\n", value_type,
-                r_cond_val, default_label);
+      push_code(code, "  switch %s %s, label %%%d [\n", value_type, value_val,
+                default_label);
       for (int i = 0; i < node->stmts->size; i++) {
         Node* case_node = vec_at(node->stmts, i);
         Node* case_value_node = case_node->lhs;
@@ -864,7 +766,6 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
 
       free_variable(value);
       free(value_type);
-      free(value_ptype);
       free(r_break_label_ptr);
       free(case_labels);
       break;
@@ -886,126 +787,110 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
     case ND_GT:
     case ND_AND:
     case ND_OR: {
+      bool is_boolean = node->cast != NULL;
+      if (is_boolean) is_boolean = node->cast->type == TYPE_I1;
+
       // 演算子の場合は左右のノードを先に計算する
-      merge_code(code, generate_node(node->lhs, stack, locals_r, rctx));
-      merge_code(code, generate_node(node->rhs, stack, locals_r, rctx));
+      merge_code(code,
+                 generate_node(node->lhs, stack, locals_r, rctx, is_lval));
+      merge_code(code,
+                 generate_node(node->rhs, stack, locals_r, rctx, is_lval));
 
       // スタックから2つ取り出す
       Variable* rval = pop_variable(stack);
       Variable* lval = pop_variable(stack);
 
       if (lval->type == TYPE_I32 && rval->type == TYPE_I8) {
-        int r_right_val = r_register(rctx);
-        push_code(code, "  %%%d = load i8, i8* %%%d, align 1\n", r_right_val,
-                  rval->reg);
         int r_right_ext_val = r_register(rctx);
         push_code(code, "  %%%d = sext i8 %%%d to i32\n", r_right_ext_val,
-                  r_right_val);
-        int r_right_i32 = r_register(rctx);
-        push_code(code, "  %%%d = alloca i32, align 4\n", r_right_i32);
-        push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n",
-                  r_right_ext_val, r_right_i32);
-        free_variable(rval);
-        rval = new_variable(r_right_i32, TYPE_I32, NULL, 0);
+                  rval->reg);
+        rval = new_variable(r_right_ext_val, TYPE_I32, NULL, 0);
       }
       if (lval->type == TYPE_I8 && rval->type == TYPE_I32) {
-        int r_left_val = r_register(rctx);
-        push_code(code, "  %%%d = load i8, i8* %%%d, align 1\n", r_left_val,
-                  lval->reg);
         int r_left_ext_val = r_register(rctx);
         push_code(code, "  %%%d = sext i8 %%%d to i32\n", r_left_ext_val,
-                  r_left_val);
-        int r_left_i32 = r_register(rctx);
-        push_code(code, "  %%%d = alloca i32, align 4\n", r_left_i32);
-        push_code(code, "  store i32 %%%d, i32* %%%d, align 4\n",
-                  r_left_ext_val, r_left_i32);
-        free_variable(lval);
-        lval = new_variable(r_left_i32, TYPE_I32, NULL, 0);
+                  lval->reg);
+        lval = new_variable(r_left_ext_val, TYPE_I32, NULL, 0);
       }
 
       Variable* result_val = get_calc_result_type(node->kind, lval, rval);
       char* lval_type = get_variable_type_str(lval);
       char* lval_ptype = get_ptr_variable_type_str(lval);
-      int lval_size = get_variable_size(lval);
       char* rval_type = get_variable_type_str(rval);
       char* rval_ptype = get_ptr_variable_type_str(rval);
-      int rval_size = get_variable_size(rval);
       char* val_type = get_variable_type_str(result_val);
       char* val_ptype = get_ptr_variable_type_str(result_val);
-      int val_size = get_variable_size(result_val);
-      int r_left_val = r_register(rctx);
-      int r_right_val = r_register(rctx);
-      if (lval->reg >= 0) {
-        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_left_val,
-                  lval_type, lval_ptype, lval->reg, lval_size);
-      } else {
-        push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_left_val,
-                  lval_type, lval_ptype, lval->len, lval->name, lval_size);
-      }
-      if (rval->reg >= 0) {
-        push_code(code, "  %%%d = load %s, %s %%%d, align %d\n", r_right_val,
-                  rval_type, rval_ptype, rval->reg, rval_size);
-      } else {
-        push_code(code, "  %%%d = load %s, %s @%.*s, align %d\n", r_right_val,
-                  rval_type, rval_ptype, rval->len, rval->name, rval_size);
-      }
+      char* left_val = get_variable_value_str(lval, code, rctx, is_lval);
+      char* right_val = get_variable_value_str(rval, code, rctx, is_lval);
 
       print_debug(COL_BLUE "[generator] " COL_GREEN "[%s] " COL_RESET
                            "lval = %s, rval = %s, result_val = %s",
                   get_node_kind_name(node->kind), lval_type, rval_type,
                   val_type);
 
-      int r_result_val = r_register(rctx);
+      int r_result_val;
       if ((is_pointer_like(lval) || is_pointer_like(rval)) &&
           (node->kind == ND_ADD || node->kind == ND_SUB)) {
+        int r_middle;
         if (is_pointer_like(lval) && !is_pointer_like(rval)) {
           char* ptr_type = get_variable_type_str(lval->ptr_to);
-          int r_ptr_diff = r_right_val;
           if (node->kind == ND_SUB) {
-            r_ptr_diff = r_register(rctx) - 1;
-            r_result_val++;
-            push_code(code, "  %%%d = sub nsw %s 0, %%%d\n", r_ptr_diff,
-                      rval_type, r_right_val);
+            int r_ptr_diff = r_register(rctx);
+            push_code(code, "  %%%d = sub nsw %s 0, %s\n", r_ptr_diff,
+                      rval_type, right_val);
+            free(right_val);
+            right_val = get_variable_value_str(with_reg(rval, r_ptr_diff), code,
+                                               rctx, is_lval);
           }
-          push_code(code,
-                    "  %%%d = getelementptr inbounds %s, %s %%%d, %s %%%d\n",
-                    r_result_val, ptr_type, lval_type, r_left_val, rval_type,
-                    r_ptr_diff);
+          r_middle = r_register(rctx);
+          push_code(code, "  %%%d = getelementptr inbounds %s, %s %s, %s %s\n",
+                    r_middle, ptr_type, lval_type, left_val, rval_type,
+                    right_val);
           free(ptr_type);
         } else if (!is_pointer_like(lval) && is_pointer_like(rval)) {
+          r_middle = r_register(rctx);
           char* ptr_type = get_variable_type_str(rval->ptr_to);
-          push_code(code,
-                    "  %%%d = getelementptr inbounds %s, %s %%%d, %s %%%d\n",
-                    r_result_val, ptr_type, rval_type, r_right_val, lval_type,
-                    r_left_val);
+          push_code(code, "  %%%d = getelementptr inbounds %s, %s %s, %s %s\n",
+                    r_middle, ptr_type, rval_type, right_val, lval_type,
+                    left_val);
           free(ptr_type);
         } else {
-          int r_left_val_int = r_register(rctx) - 1;
-          r_result_val++;
-          push_code(code, "  %%%d = ptrtoint %s %%%d to i64\n", r_left_val_int,
-                    lval_type, r_left_val);
-          int r_right_val_int = r_register(rctx) - 1;
-          r_result_val++;
-          push_code(code, "  %%%d = ptrtoint %s %%%d to i64\n", r_right_val_int,
-                    rval_type, r_right_val);
-          int r_sub_result = r_register(rctx) - 1;
-          r_result_val++;
+          int r_left_val_int = r_register(rctx);
+          push_code(code, "  %%%d = ptrtoint %s %s to i64\n", r_left_val_int,
+                    lval_type, left_val);
+          int r_right_val_int = r_register(rctx);
+          push_code(code, "  %%%d = ptrtoint %s %s to i64\n", r_right_val_int,
+                    rval_type, right_val);
+          int r_sub_result = r_register(rctx);
           push_code(code, "  %%%d = sub i64 %%%d, %%%d\n", r_sub_result,
                     r_left_val_int, r_right_val_int);
-          push_code(code, "  %%%d = trunc i64 %%%d to i32\n", r_result_val,
+          r_middle = r_register(rctx);
+          push_code(code, "  %%%d = trunc i64 %%%d to i32\n", r_middle,
                     r_sub_result);
+        }
+        if (is_lval) {
+          r_result_val = r_register(rctx);
+          push_code(code, "  %%%d = alloca %s, align %d\n", r_result_val,
+                    val_type, get_variable_size(result_val));
+          push_code(code, "  store %s %%%d, %s %%%d, align %d\n", val_type,
+                    r_middle, val_ptype, r_result_val,
+                    get_variable_size(result_val));
+        } else {
+          r_result_val = r_middle;
         }
       } else {
         if (node->kind == ND_ADD || node->kind == ND_SUB ||
             node->kind == ND_MUL) {
+          r_result_val = r_register(rctx);
           char* op = node->kind == ND_ADD   ? "add"
                      : node->kind == ND_SUB ? "sub"
                                             : "mul";
-          push_code(code, "  %%%d = %s nsw %s %%%d, %%%d\n", r_result_val, op,
-                    val_type, r_left_val, r_right_val);
+          push_code(code, "  %%%d = %s nsw %s %s, %s\n", r_result_val, op,
+                    val_type, left_val, right_val);
         } else if (node->kind == ND_DIV) {
-          push_code(code, "  %%%d = sdiv %s %%%d, %%%d\n", r_result_val,
-                    val_type, r_left_val, r_right_val);
+          r_result_val = r_register(rctx);
+          push_code(code, "  %%%d = sdiv %s %s, %s\n", r_result_val, val_type,
+                    left_val, right_val);
         } else if (node->kind == ND_EQ || node->kind == ND_NE ||
                    node->kind == ND_LT || node->kind == ND_LE ||
                    node->kind == ND_GT || node->kind == ND_GE) {
@@ -1015,51 +900,62 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
                      : node->kind == ND_LE ? "sle"
                      : node->kind == ND_GT ? "sgt"
                                            : "sge";
-          int r_middle = r_register(rctx) - 1;
-          r_result_val++;
+          int r_middle;
           if (is_pointer_like(lval) && is_pointer_like(rval)) {
-            push_code(code, "  %%%d = icmp %s ptr %%%d, %%%d\n", r_middle, op,
-                      r_left_val, r_right_val);
+            r_middle = r_register(rctx);
+            push_code(code, "  %%%d = icmp %s ptr %s, %s\n", r_middle, op,
+                      left_val, right_val);
           } else if (is_pointer_like(lval) || is_pointer_like(rval)) {
-            int r_ptr_int_val = r_register(rctx) - 2;
-            r_result_val++;
-            r_middle++;
-            push_code(code, "  %%%d = ptrtoint %s %%%d to i32\n", r_ptr_int_val,
+            int r_ptr_int_val = r_register(rctx);
+            push_code(code, "  %%%d = ptrtoint %s %s to i32\n", r_ptr_int_val,
                       is_pointer_like(lval) ? lval_type : rval_type,
-                      is_pointer_like(lval) ? r_left_val : r_right_val);
-            push_code(code, "  %%%d = icmp %s i32 %%%d, %%%d\n", r_middle, op,
+                      is_pointer_like(lval) ? left_val : right_val);
+            r_middle = r_register(rctx);
+            push_code(code, "  %%%d = icmp %s i32 %%%d, %s\n", r_middle, op,
                       r_ptr_int_val,
-                      is_pointer_like(lval) ? r_right_val : r_left_val);
+                      is_pointer_like(lval) ? right_val : left_val);
           } else {
-            push_code(code, "  %%%d = icmp %s %s %%%d, %%%d\n", r_middle, op,
-                      val_type, r_left_val, r_right_val);
+            r_middle = r_register(rctx);
+            push_code(code, "  %%%d = icmp %s %s %s, %s\n", r_middle, op,
+                      val_type, left_val, right_val);
           }
-          push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val,
-                    r_middle, val_type);
+          if (is_boolean) {
+            r_result_val = r_middle;
+          } else {
+            r_result_val = r_register(rctx);
+            push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val,
+                      r_middle, val_type);
+          }
         } else if (node->kind == ND_AND || node->kind == ND_OR) {
           char* op = node->kind == ND_AND ? "and" : "or";
-          int r_middle_l = r_register(rctx) - 1;
-          int r_middle_r = r_register(rctx) - 1;
-          int r_middle = r_register(rctx) - 1;
-          r_result_val += 3;
-          push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_middle_l, val_type,
-                    r_left_val);
-          push_code(code, "  %%%d = icmp ne %s %%%d, 0\n", r_middle_r, val_type,
-                    r_right_val);
+          int r_middle_l = r_register(rctx);
+          push_code(code, "  %%%d = icmp ne %s %s, 0\n", r_middle_l, val_type,
+                    left_val);
+          int r_middle_r = r_register(rctx);
+          push_code(code, "  %%%d = icmp ne %s %s, 0\n", r_middle_r, val_type,
+                    right_val);
+          int r_middle = r_register(rctx);
           push_code(code, "  %%%d = %s i1 %%%d, %%%d\n", r_middle, op,
                     r_middle_l, r_middle_r);
-          push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val,
-                    r_middle, val_type);
+          if (is_boolean) {
+            r_result_val = r_middle;
+          } else {
+            r_result_val = r_register(rctx);
+            push_code(code, "  %%%d = zext i1 %%%d to %s\n", r_result_val,
+                      r_middle, val_type);
+          }
+        } else {
+          error("未対応の演算子です: %s", get_node_kind_name(node->kind));
+          return NULL;
         }
       }
 
-      int r_result = r_register(rctx);
-      push_code(code, "  %%%d = alloca %s, align %d\n", r_result, val_type,
-                val_size);
-      push_code(code, "  store %s %%%d, %s %%%d, align %d\n", val_type,
-                r_result_val, val_ptype, r_result, val_size);
-      push_variable_with_cast_if_needed(stack, with_reg(result_val, r_result),
-                                        node->cast);
+      if (result_val->value != NULL) {
+        free(result_val->value);
+        result_val->value = NULL;
+      }
+      push_variable_with_cast_if_needed(
+          stack, with_reg(result_val, r_result_val), node->cast);
 
       free_variable(lval);
       free_variable(rval);
@@ -1070,6 +966,8 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
       free(rval_ptype);
       free(val_type);
       free(val_ptype);
+      free(left_val);
+      free(right_val);
       break;
     }
     default:
@@ -1110,10 +1008,10 @@ Code* generate_global(LVar* var) {
   Code* code = init_code();
   char* type = get_variable_type_str(var->var);
   int size = get_variable_size(var->var);
-  if (var->var->reg == -1) {
+  if (var->var->reg == -5) {
     push_code(code, "@%.*s = dso_local global %s zeroinitializer, align %d\n",
               var->len, var->name, type, size);
-  } else if (var->var->reg == -2) {
+  } else if (var->var->reg == -6) {
     push_code(code, "@%.*s = external global %s, align %d\n", var->len,
               var->name, type, size);
   }
@@ -1229,7 +1127,7 @@ Code* generate_func(Function* func) {
     push_code(code, "  ; ");
     merge_code(code, print_node(node));
     push_code(code, "\n");
-    merge_code(code, generate_node(node, stack, locals_r, rctx));
+    merge_code(code, generate_node(node, stack, locals_r, rctx, false));
     vec_free(continue_labels);
     vec_free(break_labels);
   }

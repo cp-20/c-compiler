@@ -7,6 +7,7 @@
 
 #include "debug.h"
 #include "error.h"
+#include "llvm.h"
 #include "parser.h"
 #include "vector.h"
 
@@ -74,11 +75,78 @@ Variable* pop_variable(vector* stack) { return vec_pop(stack); }
 
 Variable* get_last_variable(vector* stack) { return vec_last(stack); }
 
+char* get_variable_value_str(Variable* var, Code* code, int* rctx,
+                             bool is_lval) {
+  if (var->reg >= 0) {
+    int r_var = var->reg;
+    if (!is_lval && var->value != NULL) {
+      if (*var->value == -1) {
+        r_var = r_register(rctx);
+        char* type = get_variable_type_str(var);
+        char* ptype = get_ptr_variable_type_str(var);
+        push_code(
+            code,
+            "  %%%d = load %s, %s %%%d ; load by get_variable_value_str\n",
+            r_var, type, ptype, var->reg);
+      }
+    }
+    char* value = calloc(4, sizeof(char));
+    sprintf(value, "%%%d", r_var);
+    return value;
+  }
+
+  // 数字
+  if (var->reg == -2) {
+    char* value = calloc(12, sizeof(char));
+    sprintf(value, "%d", *var->value);
+    return value;
+  }
+
+  // NULL
+  if (var->reg == -3) {
+    char* value = calloc(5, sizeof(char));
+    sprintf(value, "null");
+    return value;
+  }
+
+  // 文字列
+  if (var->reg == -4) {
+    char* value = calloc(17, sizeof(char));
+    sprintf(value, "@.str.%d", *var->value);
+    return value;
+  }
+
+  // グローバル変数
+  if (var->reg == -5 || var->reg == -6) {
+    int r_var;
+    if (is_lval) {
+      r_var = var->reg;
+    } else {
+      r_var = r_register(rctx);
+      char* type = get_variable_type_str(var);
+      char* ptype = get_ptr_variable_type_str(var);
+      push_code(code, "  %%%d = load %s, %s @%.*s\n", r_var, type, ptype,
+                var->len, var->name);
+    }
+    char* value = calloc(12, sizeof(char));
+    sprintf(value, "%%%d", r_var);
+    return value;
+  }
+
+  error("変数の値が設定されていません reg = %d", var->reg);
+  return NULL;
+}
+
 char* get_variable_type_str(Variable* var) {
   switch (var->type) {
     case TYPE_VOID: {
       char* type = calloc(5, sizeof(char));
       sprintf(type, "void");
+      return type;
+    }
+    case TYPE_I1: {
+      char* type = calloc(3, sizeof(char));
+      sprintf(type, "i1");
       return type;
     }
     case TYPE_I8: {
@@ -151,6 +219,8 @@ int get_variable_size(Variable* var) {
   }
 
   switch (var->type) {
+    case TYPE_I1:
+      return 1;
     case TYPE_I8:
       return 1;
     case TYPE_I32:
@@ -187,7 +257,7 @@ bool is_pointer_like(Variable* var) {
 }
 
 bool is_number(Variable* var) {
-  return var->type == TYPE_I8 || var->type == TYPE_I32;
+  return var->type == TYPE_I1 || var->type == TYPE_I8 || var->type == TYPE_I32;
 }
 
 Variable* get_calc_result_type(NodeKind kind, Variable* lval, Variable* rval) {

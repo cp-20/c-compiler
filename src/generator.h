@@ -13,7 +13,8 @@ Variable* gen_lval(Code* code, Node* node, vector* stack, Variable** locals_r,
 void push_variable_with_cast_if_needed(vector* stack, Variable* var,
                                        Variable* cast);
 
-Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx);
+Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx,
+                    bool is_lval);
 
 Code* generate_struct(Variable* var);
 Code* generate_global(LVar* var);

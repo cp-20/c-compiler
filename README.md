@@ -38,8 +38,8 @@ Thread model: posix
 InstalledDir: /usr/bin
 ```
 
-- ビルド `make`
-- テスト `make test`
+- ビルド `make 1cc` / `make 2cc` / `make 3cc`
+- テスト `make test-1cc` / `make test-2cc` / `make test-3cc`
   - ビルドしてない場合は自動でビルドされます
 - 環境の初期化 `make clean`
   - 全部のobjectファイルとかを消します

@@ -41,5 +41,8 @@ InstalledDir: /usr/bin
 - ビルド `make 1cc` / `make 2cc` / `make 3cc`
 - テスト `make test-1cc` / `make test-2cc` / `make test-3cc`
   - ビルドしてない場合は自動でビルドされます
+- diff (不動点の確認) `make diff-2cc-3cc`
 - 環境の初期化 `make clean`
   - 全部のobjectファイルとかを消します
+
+**※3ccのビルドが通らない場合は `ulimit -s unlimited` してみてください！！**

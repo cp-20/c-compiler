@@ -26,12 +26,12 @@ dist/1cc/%.o: src/%.c | dist/1cc
 dist/2cc/%.o: dist/2cc/%.ll | dist/2cc
 	clang $(CFLAGS) -c -o $@ $<
 dist/2cc/%.ll: src/%.c $(TARGET_1CC) src/lib.ll | dist/2cc
-	./$(TARGET_1CC) --output $@ $<
+	./$(TARGET_1CC) --output $@ --suppress $<
 
 dist/3cc/%.o: dist/3cc/%.ll | dist/3cc
 	clang $(CFLAGS) -c -o $@ $<
 dist/3cc/%.ll: src/%.c $(TARGET_2CC) src/lib.ll | dist/3cc
-	./$(TARGET_2CC) --output $@ $<
+	./$(TARGET_2CC) --output $@ --suppress $<
 
 dist/lib/%.o: src/lib/%.c | dist/lib
 	clang $(CFLAGS) -c -o $@ $<
@@ -62,6 +62,9 @@ test-2cc-ok: $(TARGET_2CC)
 	./test.sh --show-ok-result --compiler $(TARGET_2CC)
 test-3cc-ok: $(TARGET_3CC)
 	./test.sh --show-ok-result --compiler $(TARGET_3CC)
+
+diff-2cc-3cc: $(TARGET_2CC) $(TARGET_3CC)
+	ls dist/2cc/*.ll | xargs -I{} sh -c 'diff {} dist/3cc/`basename {}`'
 
 clean:
 	rm -f dist/lib/*.o \

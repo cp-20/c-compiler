@@ -86,9 +86,11 @@ Code* generate_node(Node* node, vector* stack, Variable** locals_r, int* rctx) {
               get_node_kind_name(node->kind));
 
   Code* code = init_code();
-  push_code(code, "  ; generate %d -> ", node->kind);
-  merge_code(code, print_node(node));
-  push_code(code, "\n");
+  if (!f_suppress) {
+    push_code(code, "  ; generate %d -> ", node->kind);
+    merge_code(code, print_node(node));
+    push_code(code, "\n");
+  }
 
   // ブロックスコープを作る
   vector* pop_local_list = new_vector();
@@ -1194,7 +1196,9 @@ Code* generate_func(Function* func) {
     char* var_ptype = get_ptr_variable_type_str(arg->var);
     int var_size = get_variable_size(arg->var);
     int r = r_register(rctx);
-    push_code(code, "  ; %.*s (arg)\n", arg->len, arg->name);
+    if (!f_suppress) {
+      push_code(code, "  ; %.*s (arg)\n", arg->len, arg->name);
+    }
     push_code(code, "  %%%d = alloca %s, align %d\n", r, var_type, var_size);
     push_code(code, "  store %s %%%d, %s %%%d, align %d\n", var_type, args[i],
               var_ptype, r, var_size);
@@ -1210,7 +1214,9 @@ Code* generate_func(Function* func) {
     char* var_type = get_variable_type_str(lvar->var);
     int var_size = get_variable_size(lvar->var);
     int r = r_register(rctx);
-    push_code(code, "  ; %.*s (local)\n", lvar->len, lvar->name);
+    if (!f_suppress) {
+      push_code(code, "  ; %.*s (local)\n", lvar->len, lvar->name);
+    }
     push_code(code, "  %%%d = alloca %s, align %d\n", r, var_type, var_size);
     print_debug("with_reg before (lvar->var = %p)", lvar->var);
     locals_r[i] = with_reg(lvar->var, r);
@@ -1226,9 +1232,11 @@ Code* generate_func(Function* func) {
     if (node == NULL) continue;
     print_debug(COL_BLUE "[generator]" COL_RESET " func->body[%d] = %d", i,
                 node->kind);
-    push_code(code, "  ; ");
-    merge_code(code, print_node(node));
-    push_code(code, "\n");
+    if (!f_suppress) {
+      push_code(code, "  ; ");
+      merge_code(code, print_node(node));
+      push_code(code, "\n");
+    }
     merge_code(code, generate_node(node, stack, locals_r, rctx));
     vec_free(continue_labels);
     vec_free(break_labels);

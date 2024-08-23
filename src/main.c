@@ -17,6 +17,7 @@ int main(int argc, char** argv) {
   }
 
   f_debug = false;
+  f_suppress = false;
   char* output_file = NULL;
   for (int i = 1; i < argc; i++) {
     char* option = argv[i];
@@ -24,6 +25,8 @@ int main(int argc, char** argv) {
       f_debug = true;
     } else if (memcmp(option, "--output", 8) == 0) {
       output_file = argv[++i];
+    } else if (memcmp(option, "--suppress", 10) == 0) {
+      f_suppress = true;
     } else {
       filename = option;
     }

@@ -56,6 +56,11 @@ test-2cc: $(TARGET_2CC)
 test-3cc: $(TARGET_3CC)
 	./test.sh --compiler $(TARGET_3CC)
 
+perf-1cc: $(TARGET_1CC)
+	./perf.sh --compiler $(TARGET_1CC)
+perf-2cc: $(TARGET_2CC)
+	./perf.sh --compiler $(TARGET_2CC)
+
 test-1cc-ok: $(TARGET_1CC)
 	./test.sh --show-ok-result --compiler $(TARGET_1CC)
 test-2cc-ok: $(TARGET_2CC)

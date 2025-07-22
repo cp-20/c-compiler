@@ -1,4 +1,4 @@
-CFLAGS=-std=c11 -g -static -Werror -Wall -Wextra
+CFLAGS=-std=c11 -g -static -Werror -Wall -Wextra -O3
 SRCS=$(notdir $(wildcard src/*.c))
 LIBS=$(notdir $(wildcard src/lib/*.c))
 LIBOBJS=$(addprefix dist/lib/,$(notdir $(LIBS:.c=.o)))
